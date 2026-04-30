@@ -80,10 +80,6 @@ fun SettingsScreen(
         user?.name?.ifBlank { null },
         user?.lastName?.ifBlank { null }
     ).joinToString(" ").ifBlank { displayName }
-    val initials = buildString {
-        user?.name?.firstOrNull()?.let { append(it.uppercaseChar()) }
-        user?.lastName?.firstOrNull()?.let { append(it.uppercaseChar()) }
-    }.ifBlank { displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "U" }
 
     Column(
         modifier = modifier
@@ -130,25 +126,8 @@ fun SettingsScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Avatar
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(accentGreen, accentGreen.copy(alpha = 0.7f))
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = initials,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                    }
+                    val user = remember { com.upn.relaxmind.data.AuthManager.getCurrentUser(context) }
+                    com.upn.relaxmind.ui.components.UserAvatar(user = user, size = 54, fontSize = 20)
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(

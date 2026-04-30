@@ -37,10 +37,11 @@ import com.upn.relaxmind.ui.theme.RelaxMutedText
 @Composable
 fun SignUpScreen(
     modifier: Modifier = Modifier,
-    onCreateAccount: (name: String, email: String, password: String) -> Unit,
+    onCreateAccount: (name: String, phoneNumber: String, email: String, password: String) -> Unit,
     onBackToLogin: () -> Unit
 ) {
     var fullName by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -51,8 +52,8 @@ fun SignUpScreen(
 
     val isEmailValid = email.isBlank() || android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
     val doPasswordsMatch = confirmPassword.isBlank() || password == confirmPassword
-    val isFormValid = fullName.isNotBlank() && email.isNotBlank() && password.isNotBlank() &&
-        confirmPassword.isNotBlank() && isEmailValid && doPasswordsMatch
+    val isFormValid = fullName.isNotBlank() && phoneNumber.isNotBlank() && email.isNotBlank() && 
+        password.isNotBlank() && confirmPassword.isNotBlank() && isEmailValid && doPasswordsMatch
     LaunchedEffect(isFormValid) {
         if (isFormValid) {
             focusManager.clearFocus(force = true)
@@ -116,6 +117,18 @@ fun SignUpScreen(
                 value = fullName,
                 onValueChange = { fullName = it },
                 placeholder = "Nombre completo",
+                imeAction = androidx.compose.ui.text.input.ImeAction.Next
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            SignUpInput(
+                value = phoneNumber,
+                onValueChange = { 
+                    if (it.length <= 9 && it.all { char -> char.isDigit() }) {
+                        phoneNumber = it 
+                    }
+                },
+                placeholder = "Número de celular (9 dígitos)",
+                keyboardType = KeyboardType.Number,
                 imeAction = androidx.compose.ui.text.input.ImeAction.Next
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -203,7 +216,7 @@ fun SignUpScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                onClick = { onCreateAccount(fullName.trim(), email.trim(), password) }
+                onClick = { onCreateAccount(fullName.trim(), phoneNumber.trim(), email.trim(), password) }
             ) {
                 Text("CREAR CUENTA", color = Color.White, fontWeight = FontWeight.Bold)
             }

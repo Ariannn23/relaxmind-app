@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.upn.relaxmind.ui.theme.*
+import com.upn.relaxmind.ui.components.RelaxBackButton
 import com.upn.relaxmind.data.LumiService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -182,9 +183,7 @@ private fun LumiHeader(onBack: () -> Unit, isDark: Boolean) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Outlined.ArrowBack, null, tint = if(isDark) Color.White else Color.Black)
-            }
+            RelaxBackButton(onClick = onBack, modifier = Modifier.size(40.dp))
             
             Spacer(modifier = Modifier.width(8.dp))
             
@@ -192,10 +191,15 @@ private fun LumiHeader(onBack: () -> Unit, isDark: Boolean) {
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(LumiGradient),
+                    .background(Color.Transparent),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.lumi),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
             }
             
             Spacer(modifier = Modifier.width(12.dp))
@@ -253,10 +257,15 @@ private fun LumiMessageBubble(message: ChatMessage, isDark: Boolean) {
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(brush = LumiGradient, alpha = 0.1f),
+                        .background(Color.Transparent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.AutoAwesome, null, tint = LumiViolet, modifier = Modifier.size(14.dp))
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.lumi),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -413,17 +422,4 @@ private fun CrisisBanner() {
     }
 }
 
-private fun getLumiResponse(input: String): String {
-    val text = input.lowercase()
-    return when {
-        text.contains("ansiedad") || text.contains("ansioso") -> 
-            "Entiendo, la ansiedad puede ser abrumadora. Respiremos juntos un momento. ¿Te gustaría que hagamos un ejercicio de respiración 4-7-8?"
-        text.contains("dormir") || text.contains("insomnio") -> 
-            "Dormir es vital para tu calma. Te sugiero probar una de nuestras meditaciones guiadas para el sueño. ¿Quieres que te muestre la biblioteca?"
-        text.contains("triste") || text.contains("llorar") -> 
-            "Lamento mucho que te sientas así. Es válido estar triste. Estoy aquí para escucharte todo el tiempo que necesites desahogarte."
-        text.contains("ejercicio") -> 
-            "¡Claro! Recomiendo empezar con 'Respiración de Caja'. Es simple y muy efectiva para resetear el sistema nervioso."
-        else -> "Gracias por compartir eso conmigo. Cuéntame más, ¿qué es lo que más te preocupa de eso?"
-    }
-}
+

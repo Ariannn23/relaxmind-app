@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.upn.relaxmind.ui.theme.RelaxBackground
 import com.upn.relaxmind.ui.theme.RelaxMutedText
+import com.upn.relaxmind.ui.components.RelaxBackButton
 
 private val PastelBlue = Color(0xFF93C5FD)
 private val DarkBlueText = Color(0xFF1E3A8A)
@@ -74,17 +75,7 @@ fun LibraryScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
                     .padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    onClick = onBack,
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 2.dp,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("←", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                }
+                RelaxBackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text(

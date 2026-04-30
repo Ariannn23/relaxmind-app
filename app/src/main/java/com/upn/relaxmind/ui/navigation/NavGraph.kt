@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -69,6 +70,20 @@ object RelaxMindRoutes {
     const val EMERGENCY_QR = "emergency_qr"
     const val SERVICES_MAP = "services_map"
     const val CHECK_IN = "check_in"
+    const val SOUNDS_RELAXING = "sounds_relaxing"
+    const val REWARDS = "rewards"
+    
+    // Caregiver Routes
+    const val CAREGIVER_DASHBOARD = "caregiver_dashboard"
+    const val CAREGIVER_REGISTRATION = "caregiver_registration"
+    const val CAREGIVER_LINKING = "caregiver_linking"
+    const val CAREGIVER_PATIENT_DETAIL = "caregiver_patient_detail"
+    const val CAREGIVER_NOTIFICATIONS = "caregiver_notifications"
+    const val CAREGIVER_SETTINGS = "caregiver_settings"
+    const val CAREGIVER_QR_SCANNER = "caregiver_qr_scanner"
+    const val REMOTE_LINKING_CODE = "remote_linking_code"
+    const val CAREGIVER_EDIT_PROFILE = "caregiver_edit_profile"
+    const val CAREGIVER_MANAGE_LINKS = "caregiver_manage_links"
 }
 
 @Composable
@@ -79,10 +94,11 @@ fun RelaxMindNavGraph(
 ) {
     val context = LocalContext.current
     val hasSeenOnboarding = AppPreferences.hasSeenOnboarding(context)
-    val isLoggedIn = AuthManager.getCurrentUser(context) != null
+    val currentUser = remember { AuthManager.getCurrentUser(context) }
+    val isLoggedIn = currentUser != null
     
     val startDest = when {
-        isLoggedIn -> RelaxMindRoutes.DASHBOARD
+        isLoggedIn -> if (currentUser?.role == "CAREGIVER") RelaxMindRoutes.CAREGIVER_DASHBOARD else RelaxMindRoutes.DASHBOARD
         !hasSeenOnboarding -> RelaxMindRoutes.ONBOARDING
         else -> RelaxMindRoutes.AUTH_WELCOME
     }
@@ -108,7 +124,7 @@ fun RelaxMindNavGraph(
             composable(RelaxMindRoutes.AUTH_WELCOME) {
                 WelcomeAuthScreen(
                     onLoginNavigate = { navController.navigate(RelaxMindRoutes.LOGIN_FORM) },
-                    onRegisterNavigate = { navController.navigate(RelaxMindRoutes.SIGN_UP) },
+                    onRegisterNavigate = { navController.navigate(RelaxMindRoutes.ROLE_SELECTION) },
                     onGoogleSignIn = {
                         AppPreferences.saveDisplayName(context, "Usuario Google")
                         AppPreferences.setGuestMode(context, false)
@@ -124,7 +140,8 @@ fun RelaxMindNavGraph(
                         val user = AuthManager.loginUser(context, email, password)
                         if (user != null) {
                             AppPreferences.setGuestMode(context, false)
-                            navController.navigate(RelaxMindRoutes.DASHBOARD) {
+                            val dest = if (user.role == "CAREGIVER") RelaxMindRoutes.CAREGIVER_DASHBOARD else RelaxMindRoutes.DASHBOARD
+                            navController.navigate(dest) {
                                 popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
                             }
                         } else {
@@ -147,7 +164,8 @@ fun RelaxMindNavGraph(
                                     val user = AuthManager.loginWithBiometrics(context)
                                     if (user != null) {
                                         AppPreferences.setGuestMode(context, false)
-                                        navController.navigate(RelaxMindRoutes.DASHBOARD) {
+                                        val dest = if (user.role == "CAREGIVER") RelaxMindRoutes.CAREGIVER_DASHBOARD else RelaxMindRoutes.DASHBOARD
+                                        navController.navigate(dest) {
                                             popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
                                         }
                                     }
@@ -177,8 +195,8 @@ fun RelaxMindNavGraph(
             }
             composable(RelaxMindRoutes.SIGN_UP) {
                 SignUpScreen(
-                    onCreateAccount = { name, email, password ->
-                        val success = AuthManager.registerUser(context, name, email, password)
+                    onCreateAccount = { name, phone, email, password ->
+                        val success = AuthManager.registerUser(context, name, email, password, "PATIENT", phone)
                         if (success) {
                             AuthManager.loginUser(context, email, password)
                             AppPreferences.setGuestMode(context, false)
@@ -194,8 +212,10 @@ fun RelaxMindNavGraph(
             composable(RelaxMindRoutes.VERIFY_EMAIL) {
                 VerifyEmailScreen(
                     onVerify = {
-                        navController.navigate(RelaxMindRoutes.ROLE_SELECTION) {
-                            popUpTo(RelaxMindRoutes.SIGN_UP) { inclusive = true }
+                        val user = AuthManager.getCurrentUser(context)
+                        val dest = if (user?.role == "CAREGIVER") RelaxMindRoutes.CAREGIVER_DASHBOARD else RelaxMindRoutes.DIAGNOSTIC_TEST
+                        navController.navigate(dest) {
+                            popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = false }
                         }
                     },
                     onResendCode = {
@@ -208,11 +228,9 @@ fun RelaxMindNavGraph(
                     onContinue = { role ->
                         AppPreferences.saveSelectedRole(context, role.value)
                         if (role == UserRole.PATIENT) {
-                            navController.navigate(RelaxMindRoutes.DIAGNOSTIC_TEST)
+                            navController.navigate(RelaxMindRoutes.SIGN_UP)
                         } else {
-                            navController.navigate(RelaxMindRoutes.DASHBOARD) {
-                                popUpTo(RelaxMindRoutes.SIGN_UP) { inclusive = true }
-                            }
+                            navController.navigate(RelaxMindRoutes.CAREGIVER_REGISTRATION)
                         }
                     }
                 )
@@ -239,8 +257,18 @@ fun RelaxMindNavGraph(
             composable(RelaxMindRoutes.REGISTRATION_SUCCESS) {
                 RegistrationSuccessScreen()
             }
-            composable(RelaxMindRoutes.DASHBOARD) {
+            composable(
+                route = "${RelaxMindRoutes.DASHBOARD}?tab={tab}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("tab") { 
+                        type = androidx.navigation.NavType.IntType
+                        defaultValue = 0 
+                    }
+                )
+            ) { backStackEntry ->
+                val initialTab = backStackEntry.arguments?.getInt("tab") ?: 0
                 DashboardScreen(
+                    initialTabIndex = initialTab,
                     onOpenCheckIn = { navController.navigate(RelaxMindRoutes.CHECK_IN) },
                     onOpenCrisis = { navController.navigate(RelaxMindRoutes.CRISIS) },
                     onOpenChatbot = { navController.navigate(RelaxMindRoutes.AI_CHAT) },
@@ -250,8 +278,10 @@ fun RelaxMindNavGraph(
                     onOpenEditProfile = { navController.navigate(RelaxMindRoutes.EDIT_PROFILE) },
                     onOpenEmergencyQr = { navController.navigate(RelaxMindRoutes.EMERGENCY_QR) },
                     onOpenServicesMap = { navController.navigate(RelaxMindRoutes.SERVICES_MAP) },
+                    onOpenSounds = { navController.navigate(RelaxMindRoutes.SOUNDS_RELAXING) },
                     onOpenAbout = { navController.navigate(RelaxMindRoutes.ABOUT) },
                     onOpenTerms = { navController.navigate(RelaxMindRoutes.TERMS) },
+                    onOpenRewards = { navController.navigate(RelaxMindRoutes.REWARDS) },
                     onToggleDarkTheme = onToggleDarkTheme,
                     onLogout = {
                         AuthManager.logout(context)
@@ -265,8 +295,8 @@ fun RelaxMindNavGraph(
                 CheckInScreen(
                     onBack = { navController.popBackStack() },
                     onNavigateToHistory = { 
-                        navController.navigate(RelaxMindRoutes.DIARY) {
-                            popUpTo(RelaxMindRoutes.CHECK_IN) { inclusive = true }
+                        navController.navigate("${RelaxMindRoutes.DASHBOARD}?tab=2") {
+                            popUpTo(RelaxMindRoutes.DASHBOARD) { inclusive = true }
                         }
                     }
                 )
@@ -327,11 +357,111 @@ fun RelaxMindNavGraph(
             }
             composable(RelaxMindRoutes.EMERGENCY_QR) {
                 EmergencyQrScreen(
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onRemoteLink = { navController.navigate(RelaxMindRoutes.REMOTE_LINKING_CODE) }
                 )
             }
             composable(RelaxMindRoutes.SERVICES_MAP) {
                 ServicesMapScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(RelaxMindRoutes.SOUNDS_RELAXING) {
+                SoundsScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(RelaxMindRoutes.REWARDS) {
+                RewardsScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            
+            // ── Caregiver Experience ──────────────────────────────────────────
+            composable(RelaxMindRoutes.CAREGIVER_REGISTRATION) {
+                CaregiverRegistrationScreen(
+                    onBack = { navController.popBackStack() },
+                    onSuccess = {
+                        navController.navigate(RelaxMindRoutes.CAREGIVER_DASHBOARD) {
+                            popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(RelaxMindRoutes.CAREGIVER_DASHBOARD) {
+                CaregiverDashboardScreen(
+                    onPatientClick = { id -> navController.navigate("${RelaxMindRoutes.CAREGIVER_PATIENT_DETAIL}/$id") },
+                    onOpenLink = { navController.navigate(RelaxMindRoutes.CAREGIVER_LINKING) },
+                    onOpenSettings = { navController.navigate(RelaxMindRoutes.CAREGIVER_SETTINGS) },
+                    onOpenNotifications = { navController.navigate(RelaxMindRoutes.CAREGIVER_NOTIFICATIONS) },
+                    onLogout = {
+                        AuthManager.logout(context)
+                        navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(RelaxMindRoutes.CAREGIVER_LINKING) {
+                CaregiverLinkingScreen(
+                    onBack = { navController.popBackStack() },
+                    onSuccess = { navController.popBackStack() },
+                    onOpenScanner = { navController.navigate(RelaxMindRoutes.CAREGIVER_QR_SCANNER) }
+                )
+            }
+            composable(
+                route = "${RelaxMindRoutes.CAREGIVER_PATIENT_DETAIL}/{patientId}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("patientId") { type = androidx.navigation.NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("patientId") ?: ""
+                CaregiverPatientDetailScreen(
+                    patientId = id,
+                    onBack = { navController.popBackStack() },
+                    onViewHistory = { /* History detail CAR-05 */ }
+                )
+            }
+            composable(RelaxMindRoutes.CAREGIVER_NOTIFICATIONS) {
+                CaregiverNotificationsScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(RelaxMindRoutes.CAREGIVER_SETTINGS) {
+                CaregiverSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onEditProfile = { navController.navigate(RelaxMindRoutes.CAREGIVER_EDIT_PROFILE) },
+                    onManageLinks = { navController.navigate(RelaxMindRoutes.CAREGIVER_MANAGE_LINKS) },
+                    onLogout = {
+                        AuthManager.logout(context)
+                        navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(RelaxMindRoutes.CAREGIVER_QR_SCANNER) {
+                CaregiverQrScannerScreen(
+                    onBack = { navController.popBackStack() },
+                    onLinked = {
+                        navController.navigate(RelaxMindRoutes.CAREGIVER_DASHBOARD) {
+                            popUpTo(RelaxMindRoutes.CAREGIVER_DASHBOARD) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(RelaxMindRoutes.REMOTE_LINKING_CODE) {
+                RemoteLinkingCodeScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(RelaxMindRoutes.CAREGIVER_EDIT_PROFILE) {
+                CaregiverEditProfileScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(RelaxMindRoutes.CAREGIVER_MANAGE_LINKS) {
+                CaregiverManageLinksScreen(
                     onBack = { navController.popBackStack() }
                 )
             }

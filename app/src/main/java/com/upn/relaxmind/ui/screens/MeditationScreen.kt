@@ -159,10 +159,14 @@ fun MeditationScreen(modifier: Modifier = Modifier) {
                 onTechniqueSelected = { selectedTechnique = it }
             )
         } else {
+            val context = androidx.compose.ui.platform.LocalContext.current
             BreathingSessionScreen(
                 technique = selected,
                 modifier = modifier,
-                onBack = { selectedTechnique = null }
+                onBack = {
+                    com.upn.relaxmind.data.GamificationManager.updateActivity(context)
+                    selectedTechnique = null
+                }
             )
         }
     }

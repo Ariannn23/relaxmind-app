@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.upn.relaxmind.ui.theme.RelaxMutedText
+import com.upn.relaxmind.ui.components.RelaxBackButton
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import com.upn.relaxmind.data.LocalDataRepository
@@ -104,18 +105,7 @@ private fun DiaryListScreen(entries: List<DiaryEntry>, onBack: () -> Unit, onNew
                     .padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    onClick = onBack,
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp,
-                    shadowElevation = 2.dp,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, modifier = Modifier.size(20.dp))
-                    }
-                }
+                RelaxBackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
                     Text(
@@ -296,15 +286,7 @@ private fun DiaryEditorScreen(onSave: (DiaryEntry) -> Unit, onCancel: () -> Unit
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onCancel,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface.copy(0.5f))
-                ) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, null)
-                }
+                    RelaxBackButton(onClick = onCancel, modifier = Modifier.size(44.dp))
 
                 Text(
                     text = LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM")),

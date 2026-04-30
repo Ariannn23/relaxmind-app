@@ -57,6 +57,8 @@ import androidx.compose.ui.unit.sp
 import com.upn.relaxmind.ui.theme.RelaxBackground
 import com.upn.relaxmind.ui.theme.RelaxGreen
 import com.upn.relaxmind.ui.theme.RelaxMutedText
+import com.upn.relaxmind.ui.components.RelaxBackButton
+import com.upn.relaxmind.data.AuthManager
 import kotlinx.coroutines.delay
 
 private val CrisisRed = Color(0xFFEF4444)
@@ -100,22 +102,7 @@ fun CrisisScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    onClick = onBack,
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                    shadowElevation = 2.dp,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "←",
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
+                RelaxBackButton(onClick = onBack)
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -273,14 +260,23 @@ fun CrisisScreen(
                     )
 
                     // Call first contact
+                    val linkedUsers = AuthManager.getLinkedUsers(context)
+                    val firstCaregiver = linkedUsers.firstOrNull { it.role == "CAREGIVER" }
+                    val caregiverPhone = firstCaregiver?.phoneNumber ?: ""
+
                     CrisisActionButton(
                         icon = Icons.Outlined.Call,
-                        title = "Llamar a mi contacto SOS",
-                        subtitle = "Contacto de emergencia principal",
+                        title = if (firstCaregiver != null) "Llamar a ${firstCaregiver.name}" else "Llamar a mi contacto SOS",
+                        subtitle = if (firstCaregiver != null) "Cuidador principal" else "Contacto de emergencia principal",
                         iconBackground = CrisisAmber,
                         onClick = {
-                            val intent = Intent(Intent.ACTION_DIAL)
-                            context.startActivity(intent)
+                            if (caregiverPhone.isNotEmpty()) {
+                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$caregiverPhone"))
+                                context.startActivity(intent)
+                            } else {
+                                val intent = Intent(Intent.ACTION_DIAL)
+                                context.startActivity(intent)
+                            }
                         }
                     )
                 }

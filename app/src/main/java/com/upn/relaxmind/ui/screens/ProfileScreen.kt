@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.fragment.app.FragmentActivity
 import com.upn.relaxmind.data.AuthManager
 import com.upn.relaxmind.ui.theme.RelaxBackground
@@ -38,6 +40,7 @@ fun ProfileScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
     var name by remember { mutableStateOf(currentUser?.name ?: "") }
     var lastName by remember { mutableStateOf(currentUser?.lastName ?: "") }
     var birthday by remember { mutableStateOf(currentUser?.birthDate ?: "15/05/1990") }
+    var phoneNumber by remember { mutableStateOf(currentUser?.phoneNumber ?: "") }
     var condition by remember { mutableStateOf(currentUser?.condition ?: "Paciente") }
     
     // App settings
@@ -52,6 +55,7 @@ fun ProfileScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
 
     val hasChanges = name != (currentUser?.name ?: "") || 
                      lastName != (currentUser?.lastName ?: "") ||
+                     phoneNumber != (currentUser?.phoneNumber ?: "") ||
                      birthday != (currentUser?.birthDate ?: "") || 
                      condition != (currentUser?.condition ?: "")
 
@@ -88,7 +92,7 @@ fun ProfileScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
             
             if (hasChanges) {
                 TextButton(onClick = {
-                    AuthManager.updateProfile(context, name, lastName, birthday, condition)
+                    AuthManager.updateProfile(context, name, lastName, phoneNumber, birthday, condition, currentUser?.avatar)
                     Toast.makeText(context, "Perfil actualizado", Toast.LENGTH_SHORT).show()
                     onBack() // Or just refresh
                 }) {
@@ -114,12 +118,7 @@ fun ProfileScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
                     .padding(20.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(68.dp).clip(CircleShape).background(Color(0xFFEFF6FF)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.AccountCircle, null, modifier = Modifier.size(42.dp), tint = Color(0xFF3B82F6))
-                    }
+                    com.upn.relaxmind.ui.components.UserAvatar(user = currentUser, size = 68, fontSize = 28)
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text("$name $lastName".trim().ifEmpty { "Usuario" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -247,6 +246,24 @@ fun ProfileScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
                                         }
                                     )
                                     
+                                    OutlinedTextField(
+                                        value = phoneNumber,
+                                        onValueChange = { 
+                                            if (it.length <= 9 && it.all { char -> char.isDigit() }) {
+                                                phoneNumber = it 
+                                            }
+                                        },
+                                        label = { Text("Número de Celular (9 dígitos)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        leadingIcon = { Icon(Icons.Outlined.Phone, null, tint = RelaxGreen) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = RelaxGreen,
+                                            focusedLabelColor = RelaxGreen
+                                        )
+                                    )
+
                                     OutlinedTextField(
                                         value = condition,
                                         onValueChange = { condition = it },

@@ -45,6 +45,7 @@ import com.upn.relaxmind.R
 import com.upn.relaxmind.ui.theme.RelaxBackground
 import com.upn.relaxmind.ui.modifiers.relaxMindScreenInsets
 import com.upn.relaxmind.ui.theme.RelaxMutedText
+import com.upn.relaxmind.ui.components.RelaxBackButton
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -113,8 +114,11 @@ fun DiagnosticTestScreen(
     Surface(modifier = modifier.fillMaxSize().relaxMindScreenInsets(), color = RelaxBackground) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp)) {
-                IconButton(onClick = { if (currentQuestionIndex == 0) onExitToRoleSelection() else currentQuestionIndex-- }, modifier = Modifier.align(Alignment.CenterStart)) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Volver", tint = MaterialTheme.colorScheme.primary)
+                Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp)) {
+                    RelaxBackButton(
+                        onClick = { if (currentQuestionIndex == 0) onExitToRoleSelection() else currentQuestionIndex-- },
+                        modifier = Modifier.size(40.dp)
+                    )
                 }
                 Text("Test Inicial", style = MaterialTheme.typography.titleMedium, modifier = Modifier.align(Alignment.Center))
                 TextButton(onClick = onSkipToDashboard, modifier = Modifier.align(Alignment.CenterEnd)) {

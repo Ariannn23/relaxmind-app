@@ -17,7 +17,9 @@ data class Reminder(
     val location: String? = null,
     val frequency: String? = null,
     val notes: String? = null,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val isWeekly: Boolean = false,
+    val repeatDays: List<Int>? = null // 1=Mon, 7=Sun
 )
 
 @Serializable

@@ -1,48 +1,100 @@
 package com.upn.relaxmind.data
 
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
+import android.util.Log
+import com.upn.relaxmind.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
-/**
- * LumiService gestiona la comunicación con la API de Gemini.
- * Proporciona una interfaz simple para obtener respuestas empáticas de la IA.
- */
 object LumiService {
-    // IMPORTANTE: Reemplaza con tu API Key real de Google AI Studio (https://aistudio.google.com/)
-    private const val API_KEY = "REEMPLAZA_CON_TU_API_KEY"
-    
-    private val model by lazy {
-        GenerativeModel(
-            modelName = "gemini-1.5-flash",
-            apiKey = API_KEY,
-            systemInstruction = content { 
-                text("Eres Lumi ✨, un asistente de bienestar emocional empático, cálido y profesional. " +
-                     "Tu objetivo es escuchar al usuario, validar sus emociones y ofrecer apoyo. " +
-                     "Siempre hablas en español. " +
-                     "Si el usuario está ansioso, sugiere ejercicios de respiración. " +
-                     "Si está triste, ofrece palabras de aliento y validación. " +
-                     "Nunca des diagnósticos médicos ni sustituyas a un profesional de la salud mental. " +
-                     "Mantén tus respuestas concisas pero muy cálidas.") 
-            }
-        )
-    }
 
-    /**
-     * Envía un mensaje a la IA y retorna la respuesta procesada.
-     */
+    private const val TAG = "LumiDebug"
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private const val API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
     suspend fun getResponse(prompt: String): String = withContext(Dispatchers.IO) {
         try {
-            if (API_KEY == "REEMPLAZA_CON_TU_API_KEY") {
-                return@withContext "Hola. Para que pueda hablar contigo de forma inteligente, necesitas configurar mi API Key en LumiService.kt."
+            val apiKey = BuildConfig.GROQ_API_KEY
+
+            // LOG DE DIAGNÓSTICO — verifica que la key llega bien
+            Log.d(TAG, "Key prefix: ${apiKey.take(8)}... Length: ${apiKey.length}")
+
+            if (apiKey.isBlank()) {
+                return@withContext "⚠️ GROQ_API_KEY está vacía. Verifica local.properties y haz Rebuild Project."
             }
-            
-            val response = model.generateContent(prompt)
-            response.text ?: "Lo siento, me quedé pensando un momento... ¿puedes decirme más sobre eso?"
+
+            val systemInstruction = "Eres Lumi ✨, un asistente de bienestar emocional empático y cálido. " +
+                    "Habla siempre en español. No des diagnósticos médicos. " +
+                    "Tus respuestas deben ser breves, humanas y profesionales."
+
+            // Construye el JSON con tipos correctos para la API de Groq
+            val messagesArray = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", systemInstruction)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", prompt)
+                })
+            }
+
+            val jsonBody = JSONObject().apply {
+                put("model", "llama-3.1-8b-instant")
+                put("messages", messagesArray)
+                put("temperature", 0.7)        // Double — aceptado por Groq
+                put("max_tokens", 1024)        // Int — correcto
+                put("stream", false)           // Explícito: sin streaming
+            }
+
+            val body = jsonBody.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+
+            val request = Request.Builder()
+                .url(API_URL)
+                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("Content-Type", "application/json")
+                .post(body)
+                .build()
+
+            Log.d(TAG, "Enviando petición a: $API_URL")
+            Log.d(TAG, "Body: ${jsonBody.toString(2)}")
+
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
+
+            Log.d(TAG, "Código HTTP: ${response.code}")
+            Log.d(TAG, "Respuesta: $responseBody")
+
+            if (!response.isSuccessful) {
+                return@withContext "❌ Error ${response.code}: $responseBody"
+            }
+
+            if (responseBody.isBlank()) {
+                return@withContext "El servidor respondió vacío. Intenta de nuevo."
+            }
+
+            val jsonResponse = JSONObject(responseBody)
+            jsonResponse
+                .getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
+
         } catch (e: Exception) {
-            e.printStackTrace()
-            "Parece que tengo problemas para conectarme ahora mismo, pero sigo aquí para escucharte. Cuéntame más."
+            Log.e(TAG, "Excepción al llamar a Groq", e)
+            "⚠️ Error de conexión: ${e.javaClass.simpleName} — ${e.localizedMessage}"
         }
     }
 }

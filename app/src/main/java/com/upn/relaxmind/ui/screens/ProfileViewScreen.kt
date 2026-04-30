@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.upn.relaxmind.ui.components.RelaxBackButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,16 +45,10 @@ fun ProfileViewScreen(
     val displayName = remember { AppPreferences.getDisplayName(context) }
     val isDark = com.upn.relaxmind.ui.theme.LocalIsDarkTheme.current
 
-    val firstName = user?.name?.ifBlank { displayName }?.substringBefore(" ") ?: "Usuario"
     val fullName = listOfNotNull(
         user?.name?.ifBlank { null },
         user?.lastName?.ifBlank { null }
     ).joinToString(" ").ifBlank { displayName.ifBlank { "Usuario" } }
-
-    val initials = buildString {
-        user?.name?.firstOrNull()?.let { append(it.uppercaseChar()) }
-        user?.lastName?.firstOrNull()?.let { append(it.uppercaseChar()) }
-    }.ifBlank { firstName.firstOrNull()?.uppercaseChar()?.toString() ?: "U" }
 
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
@@ -76,17 +71,7 @@ fun ProfileViewScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                onClick = onBack,
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp,
-                modifier = Modifier.size(44.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("←", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
-            }
+            RelaxBackButton(onClick = onBack)
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = "Mi Perfil",
@@ -120,21 +105,8 @@ fun ProfileViewScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Avatar circle with initials
-                    Box(
-                        modifier = Modifier
-                            .size(88.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = initials,
-                            fontSize = 34.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White
-                        )
-                    }
+                    // Avatar circle
+                    com.upn.relaxmind.ui.components.UserAvatar(user = user, size = 88, fontSize = 34)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -199,8 +171,108 @@ fun ProfileViewScreen(
                 )
             )
 
+            if (user?.role == "PATIENT") {
+                Spacer(modifier = Modifier.height(24.dp))
+                CaregiversCard(
+                    onUnlink = { caregiverId ->
+                        AuthManager.unlinkUser(context, caregiverId)
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(48.dp))
         }
+    }
+}
+
+@Composable
+private fun CaregiversCard(onUnlink: (String) -> Unit) {
+    val context = LocalContext.current
+    val linkedCaregivers = remember { AuthManager.getLinkedUsers(context) }
+    var caregiverToUnlink by remember { mutableStateOf<com.upn.relaxmind.data.models.User?>(null) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = Color(0x10000000))
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(20.dp)
+    ) {
+        Text(
+            text = "Cuidadores Vinculados",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 0.8.sp
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (linkedCaregivers.isEmpty()) {
+            Text(
+                text = "No tienes cuidadores vinculados",
+                style = MaterialTheme.typography.bodyMedium,
+                color = RelaxMutedText,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        } else {
+            linkedCaregivers.forEach { caregiver ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    com.upn.relaxmind.ui.components.UserAvatar(user = caregiver, size = 40, fontSize = 16)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${caregiver.name} ${caregiver.lastName}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = caregiver.patientRelationships[AuthManager.getCurrentUser(context)?.id] ?: caregiver.professionalRole ?: "Cuidador",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = RelaxMutedText
+                        )
+                    }
+                    IconButton(onClick = { 
+                        caregiverToUnlink = caregiver
+                        showConfirmDialog = true
+                    }) {
+                        Icon(Icons.Outlined.PersonRemove, "Desvincular", tint = Color(0xFFEF4444))
+                    }
+                }
+            }
+        }
+    }
+
+    if (showConfirmDialog && caregiverToUnlink != null) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("¿Desvincular Cuidador?") },
+            text = { Text("¿Estás seguro de que deseas desvincular a ${caregiverToUnlink?.name}? Ya no podrá ver tu información de bienestar.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onUnlink(caregiverToUnlink!!.id)
+                        showConfirmDialog = false
+                        Toast.makeText(context, "Desvinculado con éxito", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Desvincular")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("Cancelar")
+                }
+            },
+            shape = RoundedCornerShape(24.dp)
+        )
     }
 }
 
@@ -297,6 +369,8 @@ private fun ProfileActionRow(
         }
     }
 }
+
+// Removed RelaxBackButton
 
 private fun formatBirthDate(raw: String): String {
     if (raw.isBlank() || raw == "—") return "—"

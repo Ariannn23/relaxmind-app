@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -6,20 +8,37 @@ plugins {
 
 android {
     namespace = "com.upn.relaxmind"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
+    // CAMBIO AQUÍ: Usa la forma simple para evitar el error de "android-35.1"
+    compileSdk = 36
+
+    val localProperties = Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localProperties.load(localPropertiesFile.inputStream())
     }
+    val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
+    val groqApiKey = localProperties.getProperty("GROQ_API_KEY") ?: ""
+    val mapboxAccessToken = localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: ""
+    val googleMapsApiKey = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
 
     defaultConfig {
         applicationId = "com.upn.relaxmind"
         minSdk = 28
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Variables de entorno para las APIs
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "GROQ_API_KEY", "\"$groqApiKey\"")
+        buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxAccessToken\"")
+        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$googleMapsApiKey\"")
+
+        // Inyectar la key de Google Maps en el manifest
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
+        manifestPlaceholders["MAPBOX_ACCESS_TOKEN"] = mapboxAccessToken
     }
 
     buildTypes {
@@ -31,12 +50,19 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+    kotlin {
+        jvmToolchain(11)
+    }
+
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -56,7 +82,17 @@ dependencies {
     implementation(libs.androidx.biometric)
     implementation(libs.play.services.maps)
     implementation(libs.maps.compose)
-    implementation(libs.google.generativeai)
+    implementation(libs.okhttp)
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    
+    // CameraX and ML Kit
+    val camerax_version = "1.3.1"
+    implementation("androidx.camera:camera-camera2:$camerax_version")
+    implementation("androidx.camera:camera-lifecycle:$camerax_version")
+    implementation("androidx.camera:camera-view:$camerax_version")
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

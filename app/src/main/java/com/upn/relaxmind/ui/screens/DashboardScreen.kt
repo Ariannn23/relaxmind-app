@@ -1,5 +1,7 @@
 package com.upn.relaxmind.ui.screens
 
+import com.upn.relaxmind.ui.theme.*
+
 import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
@@ -40,6 +42,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -50,16 +53,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.NightsStay
-import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Air
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -90,6 +94,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -111,8 +116,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
+import com.upn.relaxmind.ui.components.RelaxBackButton
 import com.upn.relaxmind.data.AppPreferences
 import com.upn.relaxmind.data.AuthManager
+import com.upn.relaxmind.data.GamificationManager
 import com.upn.relaxmind.ui.theme.RelaxBackground
 import com.upn.relaxmind.ui.theme.RelaxGreen
 import com.upn.relaxmind.ui.theme.RelaxGreenSoft
@@ -165,21 +172,46 @@ fun DashboardScreen(
     onOpenEditProfile: () -> Unit = {},
     onOpenEmergencyQr: () -> Unit = {},
     onOpenServicesMap: () -> Unit = {},
+    onOpenSounds: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
     onOpenTerms: () -> Unit = {},
+    onOpenRewards: () -> Unit = {},
     onToggleDarkTheme: (Boolean) -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    initialTabIndex: Int = 0
 ) {
     val context = LocalContext.current
-    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(initialTabIndex) }
     val selectedTab = DashboardTab.entries[selectedTabIndex]
     val isGuest = AppPreferences.isGuestMode(context)
     val justRegistered = AppPreferences.isJustRegistered(context)
     var showBiometricPrompt by rememberSaveable { mutableStateOf(false) }
-    var isUnlocked by rememberSaveable { mutableStateOf(isGuest || justRegistered || AuthManager.isSessionUnlocked || !AppPreferences.isBiometricEnabled(context)) }
+    // Local state for immediate UI feedback, initialized from global session state
+    var isUnlocked by remember { 
+        mutableStateOf(isGuest || justRegistered || AuthManager.isSessionUnlocked || !AppPreferences.isBiometricEnabled(context)) 
+    }
     var authError by remember { mutableStateOf<String?>(null) }
 
+    // Sync local state with global state
+    LaunchedEffect(AuthManager.isSessionUnlocked) {
+        if (AuthManager.isSessionUnlocked) {
+            isUnlocked = true
+        }
+    }
+    
+    LaunchedEffect(isUnlocked) {
+        if (isUnlocked) {
+            AuthManager.isSessionUnlocked = true
+        }
+    }
+
     LaunchedEffect(Unit) {
+        // Safety exit: if already unlocked in this session, do nothing
+        if (AuthManager.isSessionUnlocked) {
+            isUnlocked = true
+            return@LaunchedEffect
+        }
+
         val biometricEnabled = AppPreferences.isBiometricEnabled(context)
         val promptShown = AppPreferences.isBiometricPromptShown(context)
         if (!biometricEnabled && !promptShown && !isGuest && !justRegistered) {
@@ -191,7 +223,10 @@ fun DashboardScreen(
             if (activity != null) {
                 com.upn.relaxmind.utils.BiometricHelper.authenticate(
                     activity = activity,
-                    onSuccess = { isUnlocked = true },
+                    onSuccess = { 
+                        isUnlocked = true 
+                        AuthManager.isSessionUnlocked = true
+                    },
                     onError = { authError = it }
                 )
             } else {
@@ -234,7 +269,10 @@ fun DashboardScreen(
                         if (activity != null) {
                             com.upn.relaxmind.utils.BiometricHelper.authenticate(
                                 activity = activity,
-                                onSuccess = { isUnlocked = true },
+                                onSuccess = { 
+                                    isUnlocked = true 
+                                    AuthManager.isSessionUnlocked = true
+                                },
                                 onError = { authError = it }
                             )
                         }
@@ -250,69 +288,81 @@ fun DashboardScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            PremiumBottomNavigationBar(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTabIndex = it.ordinal }
-            )
-        },
-        floatingActionButton = {
-            // Hide SOS button in Breathing to avoid blocking and full screen experience
-            if (selectedTab != DashboardTab.Breathing) {
-                SosFloatingButton(
-                    onSosTriggered = onOpenCrisis
-                )
-            }
-        },
-        floatingActionButtonPosition = androidx.compose.material3.FabPosition.End
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
-        // Handle innerPadding manually to allow full-screen effect in some tabs
-        val bottomPadding = if (selectedTab == DashboardTab.Breathing) 0.dp else innerPadding.calculateBottomPadding()
-        
-        AnimatedContent(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .systemBarsPadding(),
-            targetState = selectedTab,
-            transitionSpec = {
-                // Subtle and slow fade transition
-                (fadeIn(tween(700)) + scaleIn(initialScale = 0.98f, animationSpec = tween(700)))
-                    .togetherWith(fadeOut(tween(500)))
-            },
-            label = "dashboardTab"
-        ) { tab ->
-            when (tab) {
-                DashboardTab.Home -> DashboardHomeContent(
-                    onOpenCheckIn = onOpenCheckIn,
-                    onOpenCrisis = onOpenCrisis,
-                    onOpenChatbot = onOpenChatbot,
-                    onOpenDiary = onOpenDiary,
-                    onOpenLibrary = onOpenLibrary,
-                    onOpenServicesMap = onOpenServicesMap,
-                    onOpenProfile = onOpenProfile
-                )
-                DashboardTab.Breathing -> MeditationScreen(
+        // Use a Box to layer the content, the SOS button and the truly floating Navbar
+        Box(modifier = Modifier.fillMaxSize()) {
+            AnimatedContent(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Transparent),
+                targetState = selectedTab,
+                transitionSpec = {
+                    (fadeIn(tween(700)) + scaleIn(initialScale = 0.98f, animationSpec = tween(700)))
+                        .togetherWith(fadeOut(tween(500)))
+                },
+                label = "dashboardTab"
+            ) { tab ->
+                val contentModifier = Modifier.fillMaxSize()
+                
+                when (tab) {
+                    DashboardTab.Home -> DashboardHomeContent(
+                        onOpenCheckIn = onOpenCheckIn,
+                        onOpenCrisis = onOpenCrisis,
+                        onOpenChatbot = onOpenChatbot,
+                        onOpenDiary = onOpenDiary,
+                        onOpenLibrary = onOpenLibrary,
+                        onOpenServicesMap = onOpenServicesMap,
+                        onOpenSounds = onOpenSounds,
+                        onOpenProfile = onOpenProfile,
+                        onOpenRewards = onOpenRewards
+                    )
+                    DashboardTab.Breathing -> MeditationScreen(
+                        modifier = contentModifier
+                    )
+                    DashboardTab.Progress -> ProgressTabContent(
+                        modifier = contentModifier
+                    )
+                    DashboardTab.Reminders -> RemindersScreen(
+                        modifier = contentModifier
+                    )
+                    DashboardTab.Settings -> SettingsTabContent(
+                        onOpenProfile = onOpenProfile,
+                        onOpenEditProfile = onOpenEditProfile,
+                        onOpenEmergencyQr = onOpenEmergencyQr,
+                        onOpenAbout = onOpenAbout,
+                        onOpenTerms = onOpenTerms,
+                        onToggleDarkTheme = onToggleDarkTheme,
+                        onLogout = onLogout
+                    )
+                }
+            }
+            
+            // SOS Button - Replaced inside the overlay Box to control its position
+            if (selectedTab != DashboardTab.Breathing && 
+                selectedTab != DashboardTab.Reminders && 
+                selectedTab != DashboardTab.Progress) {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                )
-                DashboardTab.Progress -> ProgressTabContent(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding)
-                )
-                DashboardTab.Reminders -> RemindersScreen(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding)
-                )
-                DashboardTab.Settings -> SettingsTabContent(
-                    onOpenProfile = onOpenProfile,
-                    onOpenEditProfile = onOpenEditProfile,
-                    onOpenEmergencyQr = onOpenEmergencyQr,
-                    onOpenAbout = onOpenAbout,
-                    onOpenTerms = onOpenTerms,
-                    onToggleDarkTheme = onToggleDarkTheme,
-                    onLogout = onLogout
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 120.dp, end = 16.dp)
+                ) {
+                    SosFloatingButton(
+                        onSosTriggered = onOpenCrisis
+                    )
+                }
+            }
+
+            // Truly floating Navbar at the bottom
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+            ) {
+                PremiumBottomNavigationBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTabIndex = it.ordinal }
                 )
             }
         }
@@ -385,12 +435,19 @@ private fun DashboardHomeContent(
     onOpenDiary: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenServicesMap: () -> Unit,
-    onOpenProfile: () -> Unit
+    onOpenSounds: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onOpenRewards: () -> Unit
 ) {
     val context = LocalContext.current
-    val displayName = remember { AppPreferences.getDisplayName(context) }
-    val streak = remember { AppPreferences.getStreak(context) }
-    val wellnessScore = remember { AppPreferences.getWellnessScore(context) }
+    val user = AuthManager.getCurrentUser(context)
+    val displayName = user?.name ?: AppPreferences.getDisplayName(context)
+    val streak = user?.streakCount ?: AppPreferences.getStreak(context)
+    val wellnessScore = user?.wellnessScore ?: AppPreferences.getWellnessScore(context)
+
+    LaunchedEffect(Unit) {
+        GamificationManager.updateActivity(context)
+    }
 
     var showHeader by remember { mutableStateOf(false) }
     var showScore by remember { mutableStateOf(false) }
@@ -412,6 +469,7 @@ private fun DashboardHomeContent(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 12.dp)
             .padding(bottom = 8.dp)
@@ -420,7 +478,7 @@ private fun DashboardHomeContent(
             visible = showHeader,
             enter = fadeIn(tween(420)) + slideInVertically(tween(420)) { it / 6 }
         ) {
-            DashboardHeader(displayName = displayName, streak = streak, onOpenProfile = onOpenProfile)
+            DashboardHeader(displayName = displayName, streak = streak, onOpenProfile = onOpenProfile, onOpenRewards = onOpenRewards)
         }
         Spacer(modifier = Modifier.height(18.dp))
         AnimatedVisibility(
@@ -436,9 +494,9 @@ private fun DashboardHomeContent(
         ) {
             QuickAccessGridPremium(
                 onCheckIn = onOpenCheckIn,
-                onCrisis = onOpenCrisis,
                 onChatbot = onOpenChatbot,
-                onMap = onOpenServicesMap
+                onMap = onOpenServicesMap,
+                onSounds = onOpenSounds
             )
         }
         Spacer(modifier = Modifier.height(18.dp))
@@ -449,11 +507,9 @@ private fun DashboardHomeContent(
             Column {
                 NextReminderPremiumCard()
                 Spacer(modifier = Modifier.height(14.dp))
-                StreakCalendarCard(streak = streak)
+                StreakCalendarCard(streak = streak, onClick = onOpenRewards)
                 Spacer(modifier = Modifier.height(14.dp))
                 DashboardShortcutsRow(onOpenDiary = onOpenDiary, onOpenLibrary = onOpenLibrary)
-                Spacer(modifier = Modifier.height(18.dp))
-                NearbyCentersPremiumCard(onOpenMap = onOpenServicesMap)
             }
         }
         Spacer(modifier = Modifier.height(100.dp))
@@ -462,20 +518,19 @@ private fun DashboardHomeContent(
 
 @Composable
 private fun DashboardShortcutsRow(onOpenDiary: () -> Unit, onOpenLibrary: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Biblioteca card
+        val libraryGradient = Brush.linearGradient(listOf(Color(0xFF3B82F6), Color(0xFF93C5FD)))
         Box(
             modifier = Modifier
                 .weight(1f)
-                .shadow(10.dp, RoundedCornerShape(20.dp), spotColor = PastelBlue.copy(0.25f))
+                .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = Color(0x2A3B82F6))
                 .clip(RoundedCornerShape(20.dp))
-                .background(
-                    Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer.copy(0.15f), MaterialTheme.colorScheme.surface))
-                )
+                .background(getSoftBlue())
+                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(0.4f), Color(0xFF3B82F6).copy(alpha = 0.12f))), RoundedCornerShape(20.dp))
                 .clickable(
                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                     indication = null
@@ -483,42 +538,34 @@ private fun DashboardShortcutsRow(onOpenDiary: () -> Unit, onOpenLibrary: () -> 
                 .padding(16.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape)
-                        .background(PastelBlue.copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.MenuBook,
-                        contentDescription = null,
-                        tint = PastelBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.bibliteca),
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp)
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Biblioteca",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.labelMedium.copy(brush = libraryGradient),
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "Artículos y consejos",
                     style = MaterialTheme.typography.labelSmall,
-                    color = RelaxMutedText,
+                    color = Color.Gray,
                     textAlign = TextAlign.Center
                 )
             }
         }
         // Diario personal card
+        val diaryGradient = Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFFC4B5FD)))
         Box(
             modifier = Modifier
                 .weight(1f)
-                .shadow(10.dp, RoundedCornerShape(20.dp), spotColor = LavenderMid.copy(0.25f))
+                .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = Color(0x2A8B5CF6))
                 .clip(RoundedCornerShape(20.dp))
-                .background(
-                    Brush.linearGradient(listOf(MaterialTheme.colorScheme.secondaryContainer.copy(0.15f), MaterialTheme.colorScheme.surface))
-                )
+                .background(getSoftPurple())
+                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(0.4f), Color(0xFF8B5CF6).copy(alpha = 0.12f))), RoundedCornerShape(20.dp))
                 .clickable(
                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                     indication = null
@@ -526,29 +573,21 @@ private fun DashboardShortcutsRow(onOpenDiary: () -> Unit, onOpenLibrary: () -> 
                 .padding(16.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape)
-                        .background(LavenderMid.copy(alpha = 0.22f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Edit,
-                        contentDescription = null,
-                        tint = LavenderMid,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.diario),
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp)
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Diario",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.labelMedium.copy(brush = diaryGradient),
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "Diario personal",
                     style = MaterialTheme.typography.labelSmall,
-                    color = RelaxMutedText,
+                    color = Color.Gray,
                     textAlign = TextAlign.Center
                 )
             }
@@ -672,13 +711,13 @@ private fun PremiumBottomNavigationBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(78.dp)
-                    .padding(horizontal = 6.dp)
+                    .padding(horizontal = 16.dp)
             ) {
                 NavigationBarItemWithScale(
                     selected = selectedTab == DashboardTab.Home,
                     onClick = { onTabSelected(DashboardTab.Home) },
                     interactionSource = interactionHome,
-                    itemModifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    itemModifier = Modifier.weight(1f).padding(horizontal = 2.dp),
                     iconContent = { Icon(Icons.Outlined.Home, contentDescription = null) },
                     tabLabel = DashboardTab.Home.label,
                     activeColor = DashboardTab.Home.activeColor
@@ -687,7 +726,7 @@ private fun PremiumBottomNavigationBar(
                     selected = selectedTab == DashboardTab.Breathing,
                     onClick = { onTabSelected(DashboardTab.Breathing) },
                     interactionSource = interactionBreath,
-                    itemModifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    itemModifier = Modifier.weight(1f).padding(horizontal = 2.dp),
                     iconContent = { Icon(Icons.Outlined.Air, contentDescription = null) },
                     tabLabel = DashboardTab.Breathing.label,
                     activeColor = DashboardTab.Breathing.activeColor
@@ -696,7 +735,7 @@ private fun PremiumBottomNavigationBar(
                     selected = selectedTab == DashboardTab.Progress,
                     onClick = { onTabSelected(DashboardTab.Progress) },
                     interactionSource = interactionProgress,
-                    itemModifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    itemModifier = Modifier.weight(1f).padding(horizontal = 2.dp),
                     iconContent = { Icon(Icons.Outlined.Insights, contentDescription = null) },
                     tabLabel = DashboardTab.Progress.label,
                     activeColor = DashboardTab.Progress.activeColor
@@ -705,7 +744,7 @@ private fun PremiumBottomNavigationBar(
                     selected = selectedTab == DashboardTab.Reminders,
                     onClick = { onTabSelected(DashboardTab.Reminders) },
                     interactionSource = interactionReminders,
-                    itemModifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    itemModifier = Modifier.weight(1f).padding(horizontal = 2.dp),
                     iconContent = { Icon(Icons.Outlined.CalendarMonth, contentDescription = null) },
                     tabLabel = DashboardTab.Reminders.label,
                     activeColor = DashboardTab.Reminders.activeColor
@@ -778,63 +817,59 @@ private fun RowScope.NavigationBarItemWithScale(
     tabLabel: String,
     activeColor: Color
 ) {
-    val pressed by interactionSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (pressed) 0.94f else 1f,
-        animationSpec = tween(140),
-        label = "navPress"
-    )
-    val selectionScale by animateFloatAsState(
+    val combined by animateFloatAsState(
         targetValue = if (selected) 1.08f else 1f,
         animationSpec = spring(dampingRatio = 0.64f, stiffness = 360f),
         label = "navSelection"
     )
-    val combined = pressScale * selectionScale
 
-    NavigationBarItem(
-        selected = selected,
-        onClick = onClick,
-        interactionSource = interactionSource,
-        modifier = itemModifier.graphicsLayer {
-            scaleX = combined
-            scaleY = combined
-        },
-        alwaysShowLabel = false,
-        label = {
-            Text(
-                text = tabLabel,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium
+    Column(
+        modifier = itemModifier
+            .weight(1f)
+            .height(78.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
             )
-        },
-        icon = {
-            Box(contentAlignment = Alignment.Center) {
+            .graphicsLayer {
+                scaleX = combined
+                scaleY = combined
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(if (selected) activeColor.copy(alpha = 0.14f) else Color.Transparent)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val iconTint = if (selected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.6f)
+            CompositionLocalProvider(LocalContentColor provides iconTint) {
                 iconContent()
             }
-        },
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = activeColor,
-            selectedTextColor = activeColor,
-            indicatorColor = activeColor.copy(alpha = 0.12f),
-            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.45f),
-            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.45f)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = tabLabel,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
+            color = if (selected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.6f),
+            maxLines = 1
         )
-    )
+    }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun DashboardHeader(displayName: String, streak: Int, onOpenProfile: () -> Unit) {
+private fun DashboardHeader(displayName: String, streak: Int, onOpenProfile: () -> Unit, onOpenRewards: () -> Unit) {
     val context = LocalContext.current
     val user = remember { AuthManager.getCurrentUser(context) }
     val isDark = com.upn.relaxmind.ui.theme.LocalIsDarkTheme.current
 
-    val initials = buildString {
-        user?.name?.firstOrNull()?.let { append(it.uppercaseChar()) }
-        user?.lastName?.firstOrNull()?.let { append(it.uppercaseChar()) }
-    }.ifBlank {
-        displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
-    }
     val fullName = listOfNotNull(
         user?.name?.ifBlank { null },
         user?.lastName?.ifBlank { null }
@@ -888,6 +923,7 @@ private fun DashboardHeader(displayName: String, streak: Int, onOpenProfile: () 
         ) {
             // Streak badge
             Surface(
+                onClick = onOpenRewards,
                 shape = RoundedCornerShape(20.dp),
                 color = StreakOrange.copy(alpha = 0.12f),
                 modifier = Modifier.height(34.dp)
@@ -896,10 +932,9 @@ private fun DashboardHeader(displayName: String, streak: Int, onOpenProfile: () 
                     modifier = Modifier.padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.LocalFireDepartment,
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.racha),
                         contentDescription = null,
-                        tint = StreakOrange,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -923,57 +958,39 @@ private fun DashboardHeader(displayName: String, streak: Int, onOpenProfile: () 
                         shape = CircleShape,
                         spotColor = MaterialTheme.colorScheme.primary.copy(0.25f)
                     ),
-                color = MaterialTheme.colorScheme.primary
+                color = Color.Transparent
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = initials,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
+                com.upn.relaxmind.ui.components.UserAvatar(user = user, size = 44, fontSize = 16)
             }
         }
     }
 
-    // ── Profile Bottom Sheet ──────────────────────────────────────────────────
+    // Quick action sheet
     if (showSheet) {
-        androidx.compose.material3.ModalBottomSheet(
+        ModalBottomSheet(
             onDismissRequest = { showSheet = false },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            tonalElevation = 8.dp,
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .size(40.dp, 4.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                )
+            }
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 40.dp),
+                    .padding(top = 20.dp, bottom = 40.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Large avatar
-                Box(
-                    modifier = Modifier
-                        .size(84.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = initials,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White
-                    )
-                }
+                com.upn.relaxmind.ui.components.UserAvatar(user = user, size = 84, fontSize = 32)
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = fullName,
@@ -988,23 +1005,50 @@ private fun DashboardHeader(displayName: String, streak: Int, onOpenProfile: () 
                 )
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Stat pills
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    StatPill(
-                        modifier = Modifier.weight(1f),
-                        label = "Racha",
-                        value = "$streak días",
-                        color = StreakOrange
-                    )
-                    StatPill(
-                        modifier = Modifier.weight(1f),
-                        label = "Rol",
-                        value = user?.condition?.ifBlank { "Paciente" } ?: "Paciente",
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                // Stats Grid - Using Rows to avoid experimental layout issues
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.racha),
+                            label = "Racha Actual",
+                            value = "$streak días",
+                            color = StreakOrange,
+                            bgColor = getSoftOrange()
+                        )
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Filled.SentimentSatisfiedAlt,
+                            label = "Estado Paz",
+                            value = "Equilibrado",
+                            color = RelaxGreen,
+                            bgColor = getSoftGreen()
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Filled.Star,
+                            label = "Nivel Relax",
+                            value = "Bronce II",
+                            color = Color(0xFFF59E0B),
+                            bgColor = getSoftYellow()
+                        )
+                        StatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Filled.SelfImprovement,
+                            label = "Sesiones",
+                            value = "12 completas",
+                            color = Color(0xFF7C3AED),
+                            bgColor = getSoftPurple()
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -1050,30 +1094,56 @@ private fun DashboardHeader(displayName: String, streak: Int, onOpenProfile: () 
 }
 
 @Composable
-private fun StatPill(modifier: Modifier = Modifier, label: String, value: String, color: Color) {
+private fun StatCard(
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    painter: androidx.compose.ui.graphics.painter.Painter? = null,
+    label: String,
+    value: String,
+    color: Color,
+    bgColor: Color
+) {
     Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = color.copy(alpha = 0.10f)
+        modifier = modifier.shadow(6.dp, RoundedCornerShape(20.dp), spotColor = color.copy(alpha = 0.15f)),
+        shape = RoundedCornerShape(20.dp),
+        color = bgColor,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Brush.verticalGradient(listOf(Color.White.copy(0.4f), color.copy(0.1f))))
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.Start
         ) {
+            if (painter != null) {
+                androidx.compose.foundation.Image(
+                    painter = painter,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                color = color
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = RelaxMutedText,
+                fontWeight = FontWeight.Medium
             )
         }
     }
 }
+
 
 @Composable
 private fun WellnessScorePremiumCard(score: Int) {
@@ -1089,25 +1159,18 @@ private fun WellnessScorePremiumCard(score: Int) {
         label = "wellnessRing"
     )
 
-    val (accent, brushBg) = when {
-        score > 70 -> ScoreGreen to Brush.linearGradient(
-            listOf(EmeraldMist, MaterialTheme.colorScheme.surface, EmeraldDeep.copy(0.12f))
-        )
-        score >= 40 -> ScoreYellow to Brush.linearGradient(
-            listOf(Color(0xFFFFFBEB), MaterialTheme.colorScheme.surface, ScoreYellow.copy(0.15f))
-        )
-        else -> ScoreRed to Brush.linearGradient(
-            listOf(Color(0xFFFFEBEE), MaterialTheme.colorScheme.surface, ScoreRed.copy(0.12f))
-        )
-    }
-    val trackColor = RelaxMutedText.copy(alpha = 0.2f)
+    val gradient = Brush.linearGradient(listOf(Color(0xFFF43F5E), Color(0xFFFDA4AF)))
+    val softBorderGradient = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.4f), Color(0xFFF43F5E).copy(alpha = 0.12f)))
+    val cardBg = getSoftRed()
+    val trackColor = Color(0xFFF43F5E).copy(alpha = 0.1f)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(20.dp, RoundedCornerShape(24.dp), spotColor = Color(0x20000000), ambientColor = Color(0x10000000))
+            .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = Color(0x2AF43F5E))
             .clip(RoundedCornerShape(24.dp))
-            .background(brushBg)
+            .background(cardBg)
+            .border(1.dp, softBorderGradient, RoundedCornerShape(24.dp))
     ) {
         Row(
             modifier = Modifier
@@ -1116,11 +1179,11 @@ private fun WellnessScorePremiumCard(score: Int) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(112.dp),
+                modifier = Modifier.size(100.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val stroke = 11.dp.toPx()
+                    val stroke = 10.dp.toPx()
                     val pad = stroke / 2f + 4.dp.toPx()
                     val sizeArc = Size(this.size.width - pad * 2, this.size.height - pad * 2)
                     drawArc(
@@ -1133,7 +1196,7 @@ private fun WellnessScorePremiumCard(score: Int) {
                         style = Stroke(width = stroke, cap = StrokeCap.Round)
                     )
                     drawArc(
-                        color = accent,
+                        brush = gradient,
                         startAngle = -90f,
                         sweepAngle = 360f * ringProgress,
                         useCenter = false,
@@ -1142,35 +1205,40 @@ private fun WellnessScorePremiumCard(score: Int) {
                         style = Stroke(width = stroke, cap = StrokeCap.Round)
                     )
                 }
-                Text(
-                    text = "${score.coerceIn(0, 100)}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = accent
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${score.coerceIn(0, 100)}",
+                        style = MaterialTheme.typography.headlineMedium.copy(brush = gradient),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             Spacer(modifier = Modifier.size(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Tu bienestar",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = RelaxMutedText
-                )
-                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.meditar),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Tu bienestar",
+                        style = MaterialTheme.typography.titleMedium.copy(brush = gradient),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Escala 0 - 100",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = RelaxMutedText
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Gray.copy(alpha = 0.8f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = when {
-                        score > 70 -> "Buen equilibrio emocional. Sigue asi."
-                        score >= 40 -> "Hay espacio para mejorar el autocuidado."
-                        else -> "Prioriza descanso y apoyo. Estamos contigo."
-                    },
+                    text = "Prioriza tu descanso. Estamos contigo.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = RelaxMutedText
+                    color = Color.Gray.copy(alpha = 0.8f)
                 )
             }
         }
@@ -1180,76 +1248,78 @@ private fun WellnessScorePremiumCard(score: Int) {
 @Composable
 private fun QuickAccessGridPremium(
     onCheckIn: () -> Unit,
-    onCrisis: () -> Unit,
     onChatbot: () -> Unit,
-    onMap: () -> Unit
+    onMap: () -> Unit,
+    onSounds: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             QuickTilePremium(
                 title = "Check-in Diario",
                 subtitle = "¿Cómo estás hoy?",
-                icon = {
-                    Icon(
-                        Icons.Outlined.CheckCircle,
-                        null,
-                        tint = EmeraldDeep
-                    )
+                icon = { 
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.checkin),
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
+                    ) 
                 },
-                gradient = Brush.linearGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.primaryContainer.copy(0.15f), EmeraldDeep.copy(0.12f))),
+                gradient = Brush.linearGradient(listOf(Color(0xFF10B981), Color(0xFF6EE7B7))),
+                bgColor = getSoftGreen(),
                 onClick = onCheckIn,
                 modifier = Modifier.weight(1f)
             )
             QuickTilePremium(
-                title = "Crisis",
-                subtitle = "Calma inmediata",
-                icon = {
-                    Icon(
-                        Icons.Outlined.HealthAndSafety,
-                        null,
-                        tint = LavenderMid
-                    )
+                title = "Lumi ✨",
+                subtitle = "Tu amigo IA",
+                icon = { 
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.lumi),
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
+                    ) 
                 },
-                gradient = Brush.linearGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.secondaryContainer.copy(0.15f), LavenderMid.copy(0.25f))),
-                onClick = onCrisis,
+                gradient = Brush.linearGradient(listOf(Color(0xFF0EA5E9), Color(0xFF7DD3FC))),
+                bgColor = getSoftBlue(),
+                onClick = onChatbot,
                 modifier = Modifier.weight(1f)
             )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            QuickTilePremium(
-                title = "Lumi ✨",
-                subtitle = "Tu amigo IA",
-                icon = {
-                    Icon(
-                        Icons.Filled.AutoAwesome,
-                        null,
-                        tint = LumiViolet
-                    )
-                },
-                gradient = Brush.linearGradient(listOf(MaterialTheme.colorScheme.surface, LumiViolet.copy(0.12f))),
-                onClick = onChatbot,
-                modifier = Modifier.weight(1f)
-            )
             QuickTilePremium(
                 title = "Centros Cerca",
                 subtitle = "Mapa de ayuda",
-                icon = {
-                    Icon(
-                        Icons.Outlined.Map,
-                        null,
-                        tint = RelaxGreen
-                    )
+                icon = { 
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.centroscerca),
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
+                    ) 
                 },
-                gradient = Brush.linearGradient(
-                    listOf(MaterialTheme.colorScheme.surface, RelaxGreen.copy(0.12f))
-                ),
+                gradient = Brush.linearGradient(listOf(Color(0xFFF97316), Color(0xFFFDBA74))),
+                bgColor = getSoftOrange(),
                 onClick = onMap,
+                modifier = Modifier.weight(1f)
+            )
+            QuickTilePremium(
+                title = "Sonidos",
+                subtitle = "Música para tu mente",
+                icon = { 
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.sonido),
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
+                    ) 
+                },
+                gradient = Brush.linearGradient(listOf(Color(0xFFEAB308), Color(0xFFFEF08A))),
+                bgColor = getSoftYellow(),
+                onClick = onSounds,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -1262,47 +1332,45 @@ private fun QuickTilePremium(
     subtitle: String,
     icon: @Composable () -> Unit,
     gradient: Brush,
+    bgColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.95f else 1f,
-        animationSpec = tween(160),
-        label = "tileScale"
-    )
+    val scale by animateFloatAsState(targetValue = if (pressed) 0.96f else 1f, animationSpec = tween(150), label = "")
+    
     ScalePressSurface(
         onClick = onClick,
         interactionSource = interaction,
         modifier = modifier
-            .height(118.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
+            .height(140.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .shadow(14.dp, RoundedCornerShape(24.dp), spotColor = Color(0x18000000))
+                .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = Color(0x12000000))
                 .clip(RoundedCornerShape(24.dp))
-                .background(gradient)
-                .padding(14.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .background(bgColor)
+                .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(0.4f), Color.Black.copy(0.05f))), RoundedCornerShape(24.dp))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             icon()
-            Column {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.titleMedium.copy(brush = gradient),
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.labelSmall,
-                    color = RelaxMutedText
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -1329,30 +1397,41 @@ private fun ScalePressSurface(
 
 @Composable
 private fun NextReminderPremiumCard() {
-    val surfaceColor = MaterialTheme.colorScheme.surface
-    val brush = Brush.linearGradient(
-        listOf(surfaceColor, MaterialTheme.colorScheme.primaryContainer.copy(0.1f), surfaceColor)
-    )
+    val gradient = Brush.linearGradient(listOf(Color(0xFFB45309), Color(0xFFF59E0B)))
+    val softBorderGradient = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.4f), Color(0xFFB45309).copy(alpha = 0.12f)))
+    val cardBg = getSoftAmber()
+    
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(14.dp, RoundedCornerShape(24.dp), spotColor = Color(0x16000000))
+            .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = Color(0x2AB45309))
             .clip(RoundedCornerShape(24.dp))
-            .background(brush)
+            .background(cardBg)
+            .border(1.dp, softBorderGradient, RoundedCornerShape(24.dp))
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Text(
-                text = "Proximo recordatorio",
-                style = MaterialTheme.typography.labelMedium,
-                color = RelaxMutedText
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.notificaciones),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp)
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Toma de medicacion - 8:00 PM",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = "Próximo recordatorio",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Toma de medicación - 8:00 PM",
+                    style = MaterialTheme.typography.titleMedium.copy(brush = gradient),
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
         }
     }
 }
@@ -1366,7 +1445,7 @@ private fun WellnessTrendPremiumCard(values: List<Int>) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(14.dp, RoundedCornerShape(24.dp), spotColor = Color(0x16000000))
+            .shadow(3.dp, RoundedCornerShape(24.dp), spotColor = Color(0x16000000))
             .clip(RoundedCornerShape(24.dp))
             .background(brush)
     ) {
@@ -1383,19 +1462,25 @@ private fun WellnessTrendPremiumCard(values: List<Int>) {
 }
 
 @Composable
-private fun StreakCalendarCard(streak: Int) {
+private fun StreakCalendarCard(streak: Int, onClick: () -> Unit) {
     val today = LocalDate.now()
     val startOfWeek = today.minusDays(today.dayOfWeek.value % 7L)
     val streakStartDay = today.minusDays((streak - 1).coerceAtLeast(0).toLong())
     val dayLabels = listOf("D", "L", "M", "M", "J", "V", "S")
 
+    val gradient = Brush.linearGradient(listOf(Color(0xFFEA580C), Color(0xFFFDBA74)))
+    val softBorderGradient = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.4f), Color(0xFFEA580C).copy(alpha = 0.12f)))
+    val cardBg = getSoftOrange()
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(14.dp, RoundedCornerShape(24.dp), spotColor = Color(0x16000000))
+            .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = Color(0x2AEA580C))
             .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(18.dp)
+            .background(cardBg)
+            .clickable { onClick() }
+            .border(1.dp, softBorderGradient, RoundedCornerShape(24.dp))
+            .padding(20.dp)
     ) {
         Column {
             Row(
@@ -1405,26 +1490,24 @@ private fun StreakCalendarCard(streak: Int) {
             ) {
                 Text(
                     text = "Tu racha semanal",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = RelaxMutedText
+                    style = MaterialTheme.typography.titleMedium.copy(brush = gradient),
+                    fontWeight = FontWeight.Bold
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.LocalFireDepartment,
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.upn.relaxmind.R.drawable.racha),
                         contentDescription = null,
-                        tint = StreakOrange,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.size(4.dp))
                     Text(
-                        text = "$streak dias",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        text = "$streak días",
+                        style = MaterialTheme.typography.titleMedium.copy(brush = gradient),
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1438,120 +1521,39 @@ private fun StreakCalendarCard(streak: Int) {
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = dayLabels[i],
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isStreak && !isFuture) StreakOrange
-                                    else RelaxMutedText.copy(alpha = 0.45f),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Gray,
                             fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
                         )
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(
                                     when {
-                                        isToday -> Brush.verticalGradient(
-                                            listOf(Color(0xFFFFB347), StreakOrange)
-                                        )
-                                        isStreak -> Brush.verticalGradient(
-                                            listOf(
-                                                StreakOrange.copy(alpha = 0.22f),
-                                                StreakOrange.copy(alpha = 0.12f)
-                                            )
-                                        )
-                                        else -> Brush.verticalGradient(
-                                            listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant.copy(0.7f))
-                                        )
+                                        isToday -> Brush.verticalGradient(listOf(Color(0xFFFFB347), Color(0xFFFB923C)))
+                                        isStreak -> Brush.verticalGradient(listOf(Color(0xFFFB923C).copy(alpha=0.22f), Color(0xFFFDBA74).copy(alpha=0.12f)))
+                                        else -> Brush.verticalGradient(listOf(Color.LightGray.copy(0.3f), Color.LightGray.copy(0.1f)))
                                     }
-                                )
-                                .then(
-                                    if (isStreak && !isToday && !isFuture) Modifier.border(
-                                        1.4.dp, StreakOrange.copy(alpha = 0.6f), CircleShape
-                                    ) else Modifier
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            when {
-                                isToday -> Icon(
-                                    imageVector = Icons.Filled.LocalFireDepartment,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                isStreak && !isFuture -> Icon(
-                                    imageVector = Icons.Filled.LocalFireDepartment,
-                                    contentDescription = null,
-                                    tint = StreakOrange,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                else -> Text(
+                            if (isStreak && !isFuture) {
+                                Icon(Icons.Filled.LocalFireDepartment, null, tint = if (isToday) Color.White else Color(0xFFEA580C), modifier = Modifier.size(24.dp))
+                            } else {
+                                Text(
                                     text = day.dayOfMonth.toString(),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
-                                    fontWeight = FontWeight.Normal,
-                                    color = if (isFuture) RelaxMutedText.copy(alpha = 0.25f)
-                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (isFuture) Color.LightGray else Color.Gray
                                 )
                             }
                         }
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-            androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Progress to next achievement
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Próximo logro: Sabio (15 días)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "$streak/15",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = StreakOrange,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            androidx.compose.material3.LinearProgressIndicator(
-                progress = { (streak.toFloat() / 15f).coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color = StreakOrange,
-                trackColor = StreakOrange.copy(alpha = 0.15f)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Badges Grid
-            Text(
-                text = "Tus Insignias",
-                style = MaterialTheme.typography.labelSmall,
-                color = RelaxMutedText
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                BadgeItem(icon = Icons.Filled.LocalFireDepartment, color = StreakOrange, isUnlocked = true)
-                BadgeItem(icon = Icons.Outlined.CheckCircle, color = RelaxGreen, isUnlocked = true)
-                BadgeItem(icon = Icons.Outlined.Star, color = LavenderMid, isUnlocked = false)
-                BadgeItem(icon = Icons.Outlined.Favorite, color = Color(0xFF2563EB), isUnlocked = false)
-                BadgeItem(icon = Icons.Outlined.ThumbUp, color = Color(0xFFD97706), isUnlocked = false)
             }
         }
     }
@@ -1772,9 +1774,11 @@ private fun ProgressTabContent(modifier: Modifier = Modifier) {
     
     Column(
         modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(bottom = 100.dp)
-            .background(if (isDark) MaterialTheme.colorScheme.background else Color(0xFFF8FAFC))
     ) {
         // REORDERED: Title first
         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp)) {
@@ -1799,7 +1803,45 @@ private fun ProgressTabContent(modifier: Modifier = Modifier) {
             // 1. ENHANCED STATISTICS SECTION
             EnhancedStatsSection(isDark, accentGold)
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 2. CHECK-IN HISTORY SECTION
+            Text(
+                text = "Historial de Bienestar",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                CheckInHistoryItem(
+                    date = "Hoy, 10:30 AM",
+                    mood = "Excelente",
+                    score = 92,
+                    color = RelaxGreen,
+                    bgColor = getSoftGreen(),
+                    icon = Icons.Default.SentimentVerySatisfied
+                )
+                CheckInHistoryItem(
+                    date = "Ayer, 09:15 AM",
+                    mood = "Bien",
+                    score = 78,
+                    color = Color(0xFF3B82F6),
+                    bgColor = getSoftBlue(),
+                    icon = Icons.Default.SentimentSatisfied
+                )
+                CheckInHistoryItem(
+                    date = "27 Oct, 08:45 PM",
+                    mood = "Neutral",
+                    score = 65,
+                    color = Color(0xFFF59E0B),
+                    bgColor = getSoftYellow(),
+                    icon = Icons.Default.SentimentNeutral
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
             
             // 2. ACTIVITY SUMMARY SECTION
             ActivitySummarySection(isDark, primaryGreen)
@@ -1851,7 +1893,7 @@ private fun ProfileCompactHeader(name: String, isDark: Boolean, primaryGreen: Co
         Spacer(modifier = Modifier.width(16.dp))
         
         Column(modifier = Modifier.weight(1f)) {
-            Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Text("En RelaxMind desde Enero 2025", style = MaterialTheme.typography.labelSmall, color = RelaxMutedText)
         }
         
@@ -1871,6 +1913,71 @@ private fun ProfileCompactHeader(name: String, isDark: Boolean, primaryGreen: Co
 }
 
 @Composable
+private fun CheckInHistoryItem(
+    date: String,
+    mood: String,
+    score: Int,
+    color: Color,
+    bgColor: Color,
+    icon: ImageVector
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(6.dp, RoundedCornerShape(20.dp), spotColor = color.copy(0.15f)),
+        shape = RoundedCornerShape(20.dp),
+        color = bgColor,
+        border = BorderStroke(1.dp, Brush.verticalGradient(listOf(Color.White.copy(0.4f), color.copy(0.1f))))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = mood,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = date,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "$score",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    color = color
+                )
+                Text("PTS", style = MaterialTheme.typography.labelSmall, color = color.copy(0.6f))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowForwardIos,
+                contentDescription = null,
+                tint = color.copy(0.3f),
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun EnhancedStatsSection(isDark: Boolean, accentColor: Color) {
     var selectedRange by remember { mutableStateOf("7 días") }
     
@@ -1881,7 +1988,7 @@ private fun EnhancedStatsSection(isDark: Boolean, accentColor: Color) {
         shadowElevation = 4.dp
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text("Bienestar Emocional", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            Text("Bienestar Emocional", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             
             Spacer(modifier = Modifier.height(12.dp))
             
@@ -1988,7 +2095,7 @@ private fun StatSmallCard(modifier: Modifier, label: String, value: String, icon
         Column {
             Text(label, style = MaterialTheme.typography.labelSmall, color = RelaxMutedText)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 if (icon != null) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(icon, null, modifier = Modifier.size(12.dp), tint = Color(0xFFF59E0B))
@@ -2007,7 +2114,7 @@ private fun ActivitySummarySection(isDark: Boolean, primary: Color) {
         shadowElevation = 2.dp
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text("Resumen de Actividad", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Text("Resumen de Actividad", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.height(16.dp))
             
             ActivityRow(Icons.Outlined.Air, "Respiración 4-7-8", "Ejercicio más usado", primary)
@@ -2030,8 +2137,8 @@ private fun ActivityRow(icon: androidx.compose.ui.graphics.vector.ImageVector, t
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column {
-            Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = RelaxMutedText)
+            Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
         }
     }
 }
@@ -2055,7 +2162,7 @@ private fun EmotionalCalendarSection(isDark: Boolean) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Tu Mes Emocional", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                Text("Tu Mes Emocional", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                 
                 Box {
                     TextButton(onClick = { showMonthPicker = true }) {
@@ -2090,6 +2197,12 @@ private fun EmotionalCalendarSection(isDark: Boolean) {
             
             Spacer(modifier = Modifier.height(8.dp))
             
+            var selectedDayDetail by remember { mutableStateOf<Int?>(null) }
+            
+            if (selectedDayDetail != null) {
+                CheckInDetailDialog(day = selectedDayDetail!!, onDismiss = { selectedDayDetail = null })
+            }
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (week in 0..4) { // 5 weeks approx
                     Row(
@@ -2100,26 +2213,28 @@ private fun EmotionalCalendarSection(isDark: Boolean) {
                             val i = week * 7 + dayOfWeek
                             if (i < 30) {
                                 val color = when {
-                                    i % 7 == 0 -> Color(0xFF93C5FD) // Muted Blue
-                                    i % 5 == 0 -> Color(0xFFC4B5FD) // Lavender
-                                    i % 4 == 0 -> Color(0xFF6EE7B7) // Mint
-                                    i % 3 == 0 -> Color(0xFFFDBA74) // Peach
-                                    i % 2 == 0 -> Color(0xFFFDE047) // Warm Yellow
+                                    i % 7 == 0 -> Color(0xFF93C5FD) // Muy Mal
+                                    i % 5 == 0 -> Color(0xFFC4B5FD) // Mal
+                                    i % 4 == 0 -> Color(0xFF6EE7B7) // Neutral
+                                    i % 3 == 0 -> Color(0xFFFDBA74) // Bien
+                                    i % 2 == 0 -> Color(0xFFFDE047) // Muy Bien
                                     else -> (if(isDark) Color.White.copy(0.05f) else Color(0xFFF1F5F9))
                                 }
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .aspectRatio(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(color),
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(color)
+                                        .clickable { selectedDayDetail = i + 1 },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         "${i + 1}", 
                                         style = MaterialTheme.typography.labelSmall, 
-                                        fontSize = 9.sp, 
-                                        color = if(isDark) Color.White.copy(0.4f) else Color.Black.copy(0.3f)
+                                        fontSize = 10.sp, 
+                                        fontWeight = FontWeight.Bold,
+                                        color = if(isDark) Color.White.copy(0.6f) else Color.Black.copy(0.4f)
                                     )
                                 }
                             } else {
@@ -2153,6 +2268,58 @@ private fun EmotionalCalendarSection(isDark: Boolean) {
 }
 
 @Composable
+private fun CheckInDetailDialog(
+    day: Int,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RelaxGreen)
+            ) { 
+                Text("Cerrar", fontWeight = FontWeight.Bold) 
+            }
+        },
+        title = {
+            Text("Detalle del día $day", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                DetailRow(Icons.Default.SentimentVerySatisfied, "Bienestar General", "Excelente (92%)", RelaxGreen)
+                DetailRow(Icons.Default.NightsStay, "Calidad de Sueño", "Muy Bueno (8h)", Color(0xFF6366F1))
+                DetailRow(Icons.Default.Healing, "Molestias", "Ninguna reportada", Color.Gray)
+                DetailRow(Icons.Default.AutoAwesome, "Medicación", "Dosis completada", Color(0xFF10B981))
+            }
+        },
+        shape = RoundedCornerShape(32.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    )
+}
+
+@Composable
+private fun DetailRow(icon: ImageVector, label: String, value: String, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(44.dp).clip(CircleShape).background(color.copy(0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = RelaxMutedText)
+            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
 private fun LegendItem(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
@@ -2164,7 +2331,7 @@ private fun LegendItem(color: Color, label: String) {
 @Composable
 private fun ExpandedAchievementsSection(isDark: Boolean, accent: Color) {
     Column {
-        Text("Logros Alcanzados", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+        Text("Logros Alcanzados", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.height(16.dp))
         
         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -2187,7 +2354,7 @@ private fun ExpandedAchievementsSection(isDark: Boolean, accent: Color) {
                 Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp), tint = RelaxMutedText)
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Siguiente: Disciplinado (7 días)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text("Siguiente: Disciplinado (7 días)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(modifier = Modifier.height(4.dp))
                     LinearProgressIndicator(
                         progress = 0.42f,
@@ -2222,7 +2389,7 @@ private fun AchievementItem(name: String, icon: androidx.compose.ui.graphics.vec
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = if (isUnlocked) Color.Unspecified else RelaxMutedText)
+        Text(name, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = if (isUnlocked) MaterialTheme.colorScheme.onSurface else RelaxMutedText)
     }
 }
 
@@ -2235,7 +2402,7 @@ private fun DiaryQuickAccessSection(isDark: Boolean, primary: Color) {
         shadowElevation = 2.dp
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text("Mi Diario", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Text("Mi Diario", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.height(16.dp))
             
             DiaryPreviewTile("27 Abr", "Hoy me sentí mucho más tranquilo...", "😌")
@@ -2252,7 +2419,7 @@ private fun DiaryQuickAccessSection(isDark: Boolean, primary: Color) {
             ) {
                 Icon(Icons.Default.Add, null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Nueva entrada", fontWeight = FontWeight.Bold)
+                Text("Nueva entrada", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }

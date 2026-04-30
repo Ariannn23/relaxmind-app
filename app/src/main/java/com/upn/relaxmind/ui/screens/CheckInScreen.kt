@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -39,10 +40,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.upn.relaxmind.ui.theme.RelaxBackground
-import com.upn.relaxmind.ui.theme.RelaxGreen
-import com.upn.relaxmind.ui.theme.LocalIsDarkTheme
+import com.upn.relaxmind.ui.components.RelaxBackButton
+import com.upn.relaxmind.ui.theme.*
 import kotlinx.coroutines.launch
+import com.upn.relaxmind.data.GamificationManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,20 +64,9 @@ fun CheckInScreen(
     var discomfortIntensity by rememberSaveable { mutableFloatStateOf(3f) }
     var tookMedication by rememberSaveable { mutableStateOf("Sí") }
     
-    // Dynamic background colors based on page
-    val bgColors = listOf(
-        Color(0xFFFEF3C7), // Page 0: Mood (Sunny)
-        Color(0xFFE0E7FF), // Page 1: Sleep (Night/Calm)
-        Color(0xFFFFEDD5), // Page 2: Discomfort (Warm)
-        Color(0xFFDCFCE7), // Page 3: Medication (Fresh)
-        Color(0xFFF3E8FF)  // Page 4: Results (Magic)
-    )
+    var hoursSlept by remember { mutableStateOf(8) }
     
-    val currentBgColor = if (isDark) {
-        MaterialTheme.colorScheme.background
-    } else {
-        bgColors[pagerState.currentPage]
-    }
+    val currentBgColor = getSoftMint()
 
     Scaffold(
         topBar = {
@@ -105,26 +95,30 @@ fun CheckInScreen(
                 .padding(padding)
                 .animateContentSize()
         ) {
-            // High fidelity progress indicator
-            Row(
+            // 3D Styled Progress Bar
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 32.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 32.dp, vertical = 20.dp)
+                    .height(10.dp)
+                    .clip(CircleShape)
+                    .background(if (isDark) Color.White.copy(0.05f) else Color.Black.copy(0.05f))
             ) {
-                repeat(totalSteps) { i ->
-                    val isCompleted = i <= pagerState.currentPage
-                    val color = if (isCompleted) RelaxGreen else if (isDark) Color.White.copy(0.1f) else Color.White.copy(0.4f)
-                    val width by animateDpAsState(if (i == pagerState.currentPage) 32.dp else 12.dp)
-                    
-                    Box(
-                        modifier = Modifier
-                            .height(6.dp)
-                            .width(width)
-                            .clip(CircleShape)
-                            .background(color)
-                    )
-                }
+                val progress = (pagerState.currentPage + 1).toFloat() / totalSteps
+                val progressWidth = animateFloatAsState(progress).value
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progressWidth)
+                        .fillMaxHeight()
+                        .clip(CircleShape)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(RelaxGreen.copy(0.7f), RelaxGreen)
+                            )
+                        )
+                        .shadow(4.dp, CircleShape, spotColor = RelaxGreen)
+                )
             }
 
             HorizontalPager(
@@ -141,7 +135,12 @@ fun CheckInScreen(
                 ) {
                     when (page) {
                         0 -> MoodStep(moodScore) { moodScore = it }
-                        1 -> SleepStep(sleepQuality) { sleepQuality = it }
+                        1 -> SleepStep(
+                            selected = sleepQuality,
+                            hoursSlept = hoursSlept,
+                            onSelect = { sleepQuality = it },
+                            onHoursChange = { hoursSlept = it }
+                        )
                         2 -> DiscomfortStep(
                             hasDiscomfort, discomfortType, discomfortIntensity,
                             onToggle = { hasDiscomfort = it },
@@ -196,7 +195,6 @@ fun CheckInScreen(
 
 @Composable
 private fun MoodStep(selected: Int, onSelect: (Int) -> Unit) {
-    val moods = listOf("emoji1", "emoji2", "emoji3", "emoji4", "emoji5")
     val labels = listOf("Muy Mal", "Mal", "Neutral", "Bien", "Excelente")
     
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -206,35 +204,35 @@ private fun MoodStep(selected: Int, onSelect: (Int) -> Unit) {
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(60.dp))
+        Spacer(modifier = Modifier.height(40.dp))
         
         Column(
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            moods.forEachIndexed { index, emoji ->
+            labels.forEachIndexed { index, label ->
                 val isSelected = selected == index + 1
-                val scale by animateFloatAsState(if (isSelected) 1.15f else 1f)
-                val alpha by animateFloatAsState(if (isSelected) 1f else 0.5f)
+                val scale by animateFloatAsState(if (isSelected) 1.05f else 1f)
                 
-                Surface(
-                    onClick = { onSelect(index + 1) },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .scale(scale)
-                        .graphicsLayer { this.alpha = alpha },
-                    shape = RoundedCornerShape(24.dp),
-                    color = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
-                    border = if (isSelected) BorderStroke(2.dp, RelaxGreen) else null,
-                    shadowElevation = if (isSelected) 8.dp else 0.dp
+                        .shadow(if (isSelected) 12.dp else 2.dp, RoundedCornerShape(24.dp), spotColor = RelaxGreen.copy(0.3f))
+                        .background(
+                            color = if (isSelected) Color.White else Color(0xFFF7FBF7), // Solid bone-white
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                        .border(1.dp, if (isSelected) RelaxGreen.copy(0.5f) else Color.Black.copy(0.05f), RoundedCornerShape(24.dp))
+                        .clickable { onSelect(index + 1) }
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.background(Color.Transparent).padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(56.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
                                 .background(if (isSelected) RelaxGreen.copy(0.1f) else Color.Transparent),
                             contentAlignment = Alignment.Center
@@ -250,18 +248,19 @@ private fun MoodStep(selected: Int, onSelect: (Int) -> Unit) {
                                     }
                                 ),
                                 contentDescription = null,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(32.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(20.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            labels[index],
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.background(Color.Transparent)
                         )
                         Spacer(modifier = Modifier.weight(1f))
                         if (isSelected) {
-                            Icon(Icons.Default.CheckCircle, null, tint = RelaxGreen)
+                            Icon(Icons.Default.CheckCircle, null, tint = RelaxGreen, modifier = Modifier.size(24.dp))
                         }
                     }
                 }
@@ -271,9 +270,9 @@ private fun MoodStep(selected: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-private fun SleepStep(selected: Int, onSelect: (Int) -> Unit) {
+private fun SleepStep(selected: Int, hoursSlept: Int, onSelect: (Int) -> Unit, onHoursChange: (Int) -> Unit) {
     val options = listOf("Poco", "Regular", "Muy Bien")
-    val icons = listOf(Icons.Outlined.Bedtime, Icons.Outlined.SentimentNeutral, Icons.Default.NightsStay)
+    val icons = listOf(Icons.Default.Cloud, Icons.Default.NightsStay, Icons.Default.Bedtime)
     
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
@@ -282,35 +281,93 @@ private fun SleepStep(selected: Int, onSelect: (Int) -> Unit) {
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(40.dp))
         
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             options.forEachIndexed { index, label ->
                 val isSelected = selected == index + 1
-                Surface(
-                    onClick = { onSelect(index + 1) },
-                    modifier = Modifier.weight(1f).height(160.dp),
-                    shape = RoundedCornerShape(32.dp),
-                    color = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surface.copy(0.4f),
-                    border = if (isSelected) BorderStroke(3.dp, Color(0xFF6366F1)) else null,
-                    shadowElevation = if (isSelected) 12.dp else 2.dp
+                val scale by animateFloatAsState(if (isSelected) 1.05f else 1f)
+                val accentColor = when(index) {
+                    0 -> Color(0xFFFF6B6B)
+                    1 -> Color(0xFFF59E0B)
+                    else -> Color(0xFF6366F1)
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(130.dp)
+                        .scale(scale)
+                        .shadow(if (isSelected) 16.dp else 0.dp, RoundedCornerShape(32.dp), spotColor = accentColor.copy(0.2f))
+                        .background(
+                            color = if (isSelected) Color.White else Color.Black.copy(0.04f),
+                            shape = RoundedCornerShape(32.dp)
+                        )
+                        .border(
+                            width = if (isSelected) 2.dp else 1.dp,
+                            brush = if (isSelected) Brush.verticalGradient(listOf(accentColor, accentColor.copy(0.6f))) else SolidColor(Color.Black.copy(0.03f)),
+                            shape = RoundedCornerShape(32.dp)
+                        )
+                        .clickable { onSelect(index + 1) },
+                    contentAlignment = Alignment.Center
                 ) {
                     Column(
+                        modifier = Modifier.background(Color.Transparent),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Icon(
                             icons[index], 
                             null, 
-                            modifier = Modifier.size(40.dp),
-                            tint = if (isSelected) Color(0xFF6366F1) else MaterialTheme.colorScheme.onSurface.copy(0.4f)
+                            modifier = Modifier.size(36.dp).background(Color.Transparent),
+                            tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurface.copy(0.3f)
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(label, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            label, 
+                            fontWeight = FontWeight.Bold, 
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.background(Color.Transparent)
+                        )
                     }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Text("¿Cuántas horas lograste dormir?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Horizontal Hour Picker (Simple Wheel)
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 20.dp)
+        ) {
+            items(12) { i ->
+                val hours = i + 1
+                val isSelected = hours == hoursSlept
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .shadow(if (isSelected) 8.dp else 0.dp, CircleShape, spotColor = Color(0xFF6366F1).copy(0.3f))
+                        .background(
+                            color = if (isSelected) Color(0xFF6366F1) else Color(0xFFF7FBF7),
+                            shape = CircleShape
+                        )
+                        .border(1.dp, if (isSelected) Color.Transparent else Color.Black.copy(0.05f), CircleShape)
+                        .clickable { onHoursChange(hours) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "${hours}h", 
+                        fontWeight = FontWeight.Bold, 
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.background(Color.Transparent)
+                    )
                 }
             }
         }
@@ -329,28 +386,49 @@ private fun DiscomfortStep(
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(56.dp))
         
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(32.dp),
-            color = if (hasDiscomfort) Color.White else Color.White.copy(0.6f),
-            onClick = { onToggle(!hasDiscomfort) }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(6.dp, RoundedCornerShape(32.dp), spotColor = Color.Black.copy(0.05f))
+                .background(
+                    color = if (hasDiscomfort) MaterialTheme.colorScheme.surface else Color(0xFFF7FBF7),
+                    shape = RoundedCornerShape(32.dp)
+                )
+                .border(
+                    1.dp, 
+                    if (hasDiscomfort) RelaxGreen.copy(0.3f) else Color.Black.copy(0.05f), 
+                    RoundedCornerShape(32.dp)
+                )
+                .clickable { onToggle(!hasDiscomfort) }
         ) {
             Row(
-                modifier = Modifier.padding(24.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.background(Color.Transparent).padding(horizontal = 24.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier.size(48.dp).clip(CircleShape).background(if (hasDiscomfort) Color(0xFFFF6B6B).copy(0.1f) else Color.Gray.copy(0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Healing, null, tint = if (hasDiscomfort) Color(0xFFFF6B6B) else Color.Gray)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(44.dp).clip(CircleShape).background(if (hasDiscomfort) Color(0xFFFF6B6B).copy(0.1f) else Color.Transparent),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Healing, null, tint = if (hasDiscomfort) Color(0xFFFF6B6B) else Color.Gray, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        "Tengo alguna molestia", 
+                        fontWeight = FontWeight.Bold, 
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.background(Color.Transparent).weight(1f, fill = false)
+                    )
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Tengo alguna molestia", fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.weight(1f))
-                Switch(checked = hasDiscomfort, onCheckedChange = onToggle)
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(
+                    checked = hasDiscomfort, 
+                    onCheckedChange = onToggle,
+                    modifier = Modifier.scale(0.75f)
+                )
             }
         }
 
@@ -367,8 +445,64 @@ private fun DiscomfortStep(
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("Intensidad", fontWeight = FontWeight.Bold)
-                Slider(value = intensity, onValueChange = onIntensityChange, valueRange = 1f..5f, steps = 3)
+                Text("Intensidad", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    (1..5).forEach { i ->
+                        val isSelected = intensity.toInt() == i
+                        val stepColor = when(i) {
+                            1, 2 -> Color(0xFF10B981)
+                            3 -> Color(0xFFF59E0B)
+                            else -> Color(0xFFFF6B6B)
+                        }
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .shadow(if (isSelected) 8.dp else 0.dp, CircleShape, spotColor = stepColor)
+                                .background(
+                                    color = if (isSelected) stepColor else Color(0xFFF7FBF7),
+                                    shape = CircleShape
+                                )
+                                .border(1.dp, if (isSelected) Color.Transparent else Color.Black.copy(0.05f), CircleShape)
+                                .clickable { onIntensityChange(i.toFloat()) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "$i",
+                                fontWeight = FontWeight.Black,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(0.4f),
+                                modifier = Modifier.background(Color.Transparent)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(0.05f))
+                ) {
+                    val progress = (intensity - 1) / 4f
+                    val trackColor = when {
+                        intensity <= 2 -> Color(0xFF10B981)
+                        intensity <= 3 -> Color(0xFFF59E0B)
+                        else -> Color(0xFFFF6B6B)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress)
+                            .fillMaxHeight()
+                            .background(trackColor, CircleShape)
+                    )
+                }
             }
         }
     }
@@ -385,24 +519,55 @@ private fun MedicationStep(selected: String, onSelect: (String) -> Unit) {
         )
         Spacer(modifier = Modifier.height(60.dp))
         
-        Box(contentAlignment = Alignment.Center) {
-            // Pill illustration logic here
-            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
                 listOf("Sí", "No", "Pendiente").forEach { opt ->
                     val isSelected = selected == opt
-                    Surface(
-                        onClick = { onSelect(opt) },
-                        modifier = Modifier.fillMaxWidth().height(80.dp),
-                        shape = RoundedCornerShape(40.dp),
-                        color = if (isSelected) RelaxGreen else Color.White,
-                        shadowElevation = 4.dp
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                "Tomé mi medicación: $opt",
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) Color.White else Color.Black
+                    val scale by animateFloatAsState(if (isSelected) 1.03f else 1f)
+                    val color = when(opt) {
+                        "Sí" -> RelaxGreen
+                        "No" -> Color(0xFFFF6B6B)
+                        else -> Color(0xFFF59E0B)
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(72.dp)
+                            .scale(scale)
+                            .shadow(if (isSelected) 12.dp else 0.dp, RoundedCornerShape(24.dp), spotColor = color.copy(0.2f))
+                            .background(
+                                color = if (isSelected) Color.White else Color.Black.copy(0.04f),
+                                shape = RoundedCornerShape(24.dp)
                             )
+                            .border(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                brush = if (isSelected) SolidColor(color) else SolidColor(Color.Black.copy(0.03f)),
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                            .clickable { onSelect(opt) }
+                    ) {
+                        Row(
+                            modifier = Modifier.background(Color.Transparent).padding(horizontal = 24.dp).fillMaxHeight(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (opt == "Sí") Icons.Default.CheckCircle else if (opt == "No") Icons.Default.Cancel else Icons.Default.Schedule,
+                                null,
+                                tint = if (isSelected) color else Color.Gray.copy(0.4f),
+                                modifier = Modifier.background(Color.Transparent)
+                            )
+                            Spacer(modifier = Modifier.width(20.dp))
+                            Text(
+                                if (opt == "Sí") "He tomado mis aliados" else if (opt == "No") "Aún no los tomo" else "Pendiente por tomar",
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) color else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.background(Color.Transparent)
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            if (isSelected) {
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+                            }
                         }
                     }
                 }
@@ -417,47 +582,101 @@ private fun FinalStep(
     onNavigateToHistory: () -> Unit
 ) {
     val finalScore = ((mood * 20) + (sleep * 5) - (if (discomfort) intensity * 10 else 0f)).toInt().coerceIn(0, 100)
+    val message = when {
+        finalScore > 85 -> "¡Estás radiante! Hoy nada puede apagar tu luz interna."
+        finalScore > 70 -> "Vas por muy buen camino. Mantén esa energía positiva."
+        finalScore > 50 -> "Un día equilibrado. Recuerda darte pequeños momentos de paz."
+        finalScore > 30 -> "Está bien no estar al 100%. Estamos aquí para acompañarte."
+        else -> "Mañana será una nueva oportunidad. Respira profundo, estamos contigo."
+    }
     
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "¡Brillas con luz propia!",
+            "Tu Estado de Paz",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
         Box(contentAlignment = Alignment.Center) {
-            val infinite = rememberInfiniteTransition(label = "sun")
-            val rotate by infinite.animateFloat(0f, 360f, infiniteRepeatable(tween(10000, easing = LinearEasing)))
+            // Animated background glow
+            val infinite = rememberInfiniteTransition(label = "scoreGlow")
+            val glowScale by infinite.animateFloat(1f, 1.3f, infiniteRepeatable(tween(2000), RepeatMode.Reverse))
             
-            Icon(
-                Icons.Default.LightMode, 
-                null, 
-                modifier = Modifier.size(240.dp).rotate(rotate).graphicsLayer { alpha = 0.1f },
-                tint = Color(0xFFFBBF24)
+            Box(
+                modifier = Modifier
+                    .size(200.dp)
+                    .scale(glowScale)
+                    .background(
+                        Brush.radialGradient(listOf(RelaxGreen.copy(0.15f), Color.Transparent)),
+                        CircleShape
+                    )
             )
-            
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "$finalScore",
-                    style = MaterialTheme.typography.displayLarge,
-                    fontWeight = FontWeight.Black,
-                    color = RelaxGreen
+
+            Surface(
+                modifier = Modifier.size(180.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 16.dp,
+                border = BorderStroke(4.dp, Brush.sweepGradient(listOf(RelaxGreen.copy(0.2f), RelaxGreen, RelaxGreen.copy(0.2f))))
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        "$finalScore",
+                        style = MaterialTheme.typography.displayMedium,
+                        fontWeight = FontWeight.Black,
+                        color = RelaxGreen
+                    )
+                    Text("NIVEL RELAX", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = RelaxMutedText)
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(40.dp))
+        
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            color = Color.White.copy(0.2f),
+            border = BorderStroke(1.dp, Color.White.copy(0.3f))
+        ) {
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = com.upn.relaxmind.R.drawable.lumi),
+                    contentDescription = "Lumi",
+                    modifier = Modifier.size(80.dp)
                 )
-                Text("Bienestar Hoy", fontWeight = FontWeight.Bold, color = RelaxGreen.copy(0.7f))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    message,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 24.sp
+                )
             }
         }
         
         Spacer(modifier = Modifier.height(48.dp))
         
+        val context = LocalContext.current
         Button(
-            onClick = onNavigateToHistory,
-            modifier = Modifier.fillMaxWidth().height(64.dp),
+            onClick = {
+                GamificationManager.updateActivity(context)
+                onNavigateToHistory()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = RelaxGreen.copy(0.2f)),
             shape = RoundedCornerShape(24.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = RelaxGreen)
+            colors = ButtonDefaults.buttonColors(containerColor = RelaxGreen)
         ) {
-            Text("Ver Historial Completo", fontWeight = FontWeight.Bold)
+            Text("Ver Detalles", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
     }
 }
