@@ -1,0 +1,231 @@
+{
+  "timestamp": "2026-05-08T15:24:32.416234",
+  "backup": "c:\\Users\\arian\\arian\\Escritorio\\RelaxMind2\\backup_estructura_original",
+  "moved": [
+    {
+      "from": "data/AppPreferences.kt",
+      "to": "core/data/preferences/AppPreferences.kt"
+    },
+    {
+      "from": "data/AuthManager.kt",
+      "to": "core/data/auth/AuthManager.kt"
+    },
+    {
+      "from": "data/LocalDataRepository.kt",
+      "to": "core/data/repository/LocalDataRepository.kt"
+    },
+    {
+      "from": "data/models/User.kt",
+      "to": "core/data/models/User.kt"
+    },
+    {
+      "from": "data/models/DataModels.kt",
+      "to": "core/data/models/DataModels.kt"
+    },
+    {
+      "from": "data/GamificationManager.kt",
+      "to": "feature/gamification/data/GamificationManager.kt"
+    },
+    {
+      "from": "data/LumiService.kt",
+      "to": "feature/ai_chat/data/LumiService.kt"
+    },
+    {
+      "from": "presentation/caregiver/CaregiverManageLinksFragment.kt",
+      "to": "legacy/xml_fragments/caregiver/CaregiverManageLinksFragment.kt"
+    },
+    {
+      "from": "presentation/caregiver/CaregiverViewModel.kt",
+      "to": "legacy/xml_fragments/caregiver/CaregiverViewModel.kt"
+    },
+    {
+      "from": "presentation/caregiver/PatientAdapter.kt",
+      "to": "legacy/xml_fragments/caregiver/PatientAdapter.kt"
+    },
+    {
+      "from": "ui/components/OmitirSkipButton.kt",
+      "to": "core/ui/components/OmitirSkipButton.kt"
+    },
+    {
+      "from": "ui/components/RelaxComponents.kt",
+      "to": "core/ui/components/RelaxComponents.kt"
+    },
+    {
+      "from": "ui/components/UserAvatar.kt",
+      "to": "core/ui/components/UserAvatar.kt"
+    },
+    {
+      "from": "ui/modifiers/RelaxMindWindowInsets.kt",
+      "to": "core/ui/modifiers/RelaxMindWindowInsets.kt"
+    },
+    {
+      "from": "ui/navigation/NavGraph.kt",
+      "to": "core/ui/navigation/NavGraph.kt"
+    },
+    {
+      "from": "ui/theme/Color.kt",
+      "to": "core/ui/theme/Color.kt"
+    },
+    {
+      "from": "ui/theme/Theme.kt",
+      "to": "core/ui/theme/Theme.kt"
+    },
+    {
+      "from": "ui/theme/Type.kt",
+      "to": "core/ui/theme/Type.kt"
+    },
+    {
+      "from": "ui/screens/LoginViewScreen.kt",
+      "to": "feature/auth/ui/LoginViewScreen.kt"
+    },
+    {
+      "from": "ui/screens/SignUpScreen.kt",
+      "to": "feature/auth/ui/SignUpScreen.kt"
+    },
+    {
+      "from": "ui/screens/ForgotPasswordScreen.kt",
+      "to": "feature/auth/ui/ForgotPasswordScreen.kt"
+    },
+    {
+      "from": "ui/screens/WelcomeAuthScreen.kt",
+      "to": "feature/auth/ui/WelcomeAuthScreen.kt"
+    },
+    {
+      "from": "ui/screens/OnboardingScreen.kt",
+      "to": "feature/auth/ui/OnboardingScreen.kt"
+    },
+    {
+      "from": "ui/screens/RoleSelectionScreen.kt",
+      "to": "feature/auth/ui/RoleSelectionScreen.kt"
+    },
+    {
+      "from": "ui/screens/VerifyEmailScreen.kt",
+      "to": "feature/auth/ui/VerifyEmailScreen.kt"
+    },
+    {
+      "from": "ui/screens/RegistrationSuccessScreen.kt",
+      "to": "feature/auth/ui/RegistrationSuccessScreen.kt"
+    },
+    {
+      "from": "ui/screens/DashboardScreen.kt",
+      "to": "feature/dashboard/ui/DashboardScreen.kt"
+    },
+    {
+      "from": "ui/screens/CheckInScreen.kt",
+      "to": "feature/checkin/ui/CheckInScreen.kt"
+    },
+    {
+      "from": "ui/screens/DiaryScreen.kt",
+      "to": "feature/diary/ui/DiaryScreen.kt"
+    },
+    {
+      "from": "ui/screens/RemindersScreen.kt",
+      "to": "feature/reminders/ui/RemindersScreen.kt"
+    },
+    {
+      "from": "ui/screens/ProfileScreen.kt",
+      "to": "feature/profile/ui/ProfileScreen.kt"
+    },
+    {
+      "from": "ui/screens/EditProfileScreen.kt",
+      "to": "feature/profile/ui/EditProfileScreen.kt"
+    },
+    {
+      "from": "ui/screens/ProfileViewScreen.kt",
+      "to": "feature/profile/ui/ProfileViewScreen.kt"
+    },
+    {
+      "from": "ui/screens/SettingsScreen.kt",
+      "to": "feature/profile/ui/SettingsScreen.kt"
+    },
+    {
+      "from": "ui/screens/AiChatScreen.kt",
+      "to": "feature/ai_chat/ui/AiChatScreen.kt"
+    },
+    {
+      "from": "ui/screens/MeditationScreen.kt",
+      "to": "feature/meditation/ui/MeditationScreen.kt"
+    },
+    {
+      "from": "ui/screens/DiagnosticTestScreen.kt",
+      "to": "feature/gamification/ui/DiagnosticTestScreen.kt"
+    },
+    {
+      "from": "ui/screens/RewardsScreen.kt",
+      "to": "feature/gamification/ui/RewardsScreen.kt"
+    },
+    {
+      "from": "ui/screens/CrisisScreen.kt",
+      "to": "feature/emergency/ui/CrisisScreen.kt"
+    },
+    {
+      "from": "ui/screens/EmergencyQrScreen.kt",
+      "to": "feature/emergency/ui/EmergencyQrScreen.kt"
+    },
+    {
+      "from": "ui/screens/RemoteLinkingCodeScreen.kt",
+      "to": "feature/emergency/ui/RemoteLinkingCodeScreen.kt"
+    },
+    {
+      "from": "ui/screens/ServicesMapScreen.kt",
+      "to": "feature/services_map/ui/ServicesMapScreen.kt"
+    },
+    {
+      "from": "ui/screens/LibraryScreen.kt",
+      "to": "feature/library/ui/LibraryScreen.kt"
+    },
+    {
+      "from": "ui/screens/SoundsScreen.kt",
+      "to": "feature/sounds/ui/SoundsScreen.kt"
+    },
+    {
+      "from": "ui/screens/InfoScreens.kt",
+      "to": "feature/info/ui/InfoScreens.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverDashboardScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverDashboardScreen.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverLinkingScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverLinkingScreen.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverQrScannerScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverQrScannerScreen.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverManageLinksScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverManageLinksScreen.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverPatientDetailScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverPatientDetailScreen.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverNotificationsScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverNotificationsScreen.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverEditProfileScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverEditProfileScreen.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverRegistrationScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverRegistrationScreen.kt"
+    },
+    {
+      "from": "ui/screens/CaregiverSettingsScreen.kt",
+      "to": "feature/caregiver/ui/CaregiverSettingsScreen.kt"
+    },
+    {
+      "from": "utils/BiometricHelper.kt",
+      "to": "core/utils/BiometricHelper.kt"
+    },
+    {
+      "from": "utils/QRUtils.kt",
+      "to": "core/utils/QRUtils.kt"
+    }
+  ],
+  "errors": []
+}

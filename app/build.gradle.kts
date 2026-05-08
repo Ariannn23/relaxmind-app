@@ -83,6 +83,9 @@ dependencies {
     implementation(libs.play.services.maps)
     implementation(libs.maps.compose)
     implementation(libs.okhttp)
+    implementation(libs.androidx.constraintlayout)
+    implementation(libs.material)
+    implementation(libs.androidx.cardview)
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     

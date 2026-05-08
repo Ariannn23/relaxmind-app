@@ -11,9 +11,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
-import com.upn.relaxmind.data.AppPreferences
-import com.upn.relaxmind.ui.navigation.RelaxMindNavGraph
-import com.upn.relaxmind.ui.theme.RelaxMindTheme
+import com.upn.relaxmind.core.data.preferences.AppPreferences
+import com.upn.relaxmind.core.ui.navigation.RelaxMindNavGraph
+import com.upn.relaxmind.core.ui.theme.RelaxMindTheme
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
