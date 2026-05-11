@@ -49,6 +49,7 @@ fun CaregiverEditProfileScreen(
     val textColor = if (isDark) Color.White else Color(0xFF1E293B)
     val mutedTextColor = if (isDark) Color.LightGray.copy(0.7f) else Color.Gray
 
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(user?.name ?: "") }
     var lastName by remember { mutableStateOf(user?.lastName ?: "") }
     var phoneNumber by remember { mutableStateOf(user?.phoneNumber ?: "") }
@@ -87,9 +88,11 @@ fun CaregiverEditProfileScreen(
                 actions = {
                     if (hasChanges) {
                         TextButton(onClick = {
-                            AuthManager.updateProfile(context, name, lastName, phoneNumber, user?.birthDate ?: "", user?.condition ?: "", selectedAvatar)
-                            Toast.makeText(context, "Perfil actualizado", Toast.LENGTH_SHORT).show()
-                            onSaved()
+                            scope.launch {
+                                AuthManager.updateProfile(context, mapOf("name" to name, "last_name" to lastName, "phone_number" to phoneNumber, "avatar" to (selectedAvatar ?: "")))
+                                Toast.makeText(context, "Perfil actualizado", Toast.LENGTH_SHORT).show()
+                                onSaved()
+                            }
                         }) {
                             Text("Guardar", color = CaregiverBlue, fontWeight = FontWeight.Black)
                         }
@@ -243,9 +246,11 @@ fun CaregiverEditProfileScreen(
 
                     Button(
                         onClick = {
-                            AuthManager.updateProfile(context, name, lastName, phoneNumber, user?.birthDate ?: "", user?.condition ?: "", selectedAvatar)
-                            Toast.makeText(context, "Perfil actualizado ✓", Toast.LENGTH_SHORT).show()
-                            onSaved()
+                            scope.launch {
+                                AuthManager.updateProfile(context, mapOf("name" to name, "last_name" to lastName, "phone_number" to phoneNumber, "avatar" to (selectedAvatar ?: "")))
+                                Toast.makeText(context, "Perfil actualizado ✓", Toast.LENGTH_SHORT).show()
+                                onSaved()
+                            }
                         },
                         enabled = hasChanges,
                         modifier = Modifier.fillMaxWidth().height(56.dp),

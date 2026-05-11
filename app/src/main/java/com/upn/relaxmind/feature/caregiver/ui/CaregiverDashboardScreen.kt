@@ -42,7 +42,12 @@ fun CaregiverDashboardScreen(
 ) {
     val context = LocalContext.current
     val currentUser = remember { AuthManager.getCurrentUser(context) }
-    val linkedPatients = remember { AuthManager.getLinkedUsers(context) }
+    var linkedPatients by remember { mutableStateOf<List<com.upn.relaxmind.core.data.models.User>>(emptyList()) }
+    
+    LaunchedEffect(Unit) {
+        linkedPatients = AuthManager.getLinkedUsers(context)
+    }
+    
     val isDark = LocalIsDarkTheme.current
     
     val bgColor = if (isDark) Color(0xFF0F172A) else CaregiverBg

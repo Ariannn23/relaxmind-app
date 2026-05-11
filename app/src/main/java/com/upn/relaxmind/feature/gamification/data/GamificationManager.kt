@@ -1,8 +1,6 @@
 package com.upn.relaxmind.feature.gamification.data
 
 import android.content.Context
-import com.upn.relaxmind.core.data.auth.AuthManager
-import com.upn.relaxmind.core.data.models.User
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -11,39 +9,38 @@ object GamificationManager {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     fun updateActivity(context: Context) {
-        val user = AuthManager.getCurrentUser(context) ?: return
-        if (user.role != "PATIENT") return
-
+        // Gamification now works on local preferences only for the streak.
+        // Full sync happens via WorkManager when online.
         val today = Calendar.getInstance()
         val todayStr = dateFormat.format(today.time)
 
-        if (user.lastActivityDate == todayStr) return // Already updated today
+        val lastActivity = context.getSharedPreferences("gamification", Context.MODE_PRIVATE)
+            .getString("last_activity_date", null)
+
+        if (lastActivity == todayStr) return // Already updated today
 
         val yesterday = Calendar.getInstance()
         yesterday.add(Calendar.DAY_OF_YEAR, -1)
         val yesterdayStr = dateFormat.format(yesterday.time)
 
-        var newStreak = user.streakCount
-        if (user.lastActivityDate == yesterdayStr) {
-            newStreak++
-        } else if (user.lastActivityDate == null || isMoreThanOneDayAgo(user.lastActivityDate)) {
-            newStreak = 1
+        val currentStreak = context.getSharedPreferences("gamification", Context.MODE_PRIVATE)
+            .getInt("streak_count", 1)
+        val newStreak = when {
+            lastActivity == yesterdayStr -> currentStreak + 1
+            lastActivity == null || isMoreThanOneDayAgo(lastActivity) -> 1
+            else -> currentStreak
         }
 
-        val updatedBadges = user.earnedBadges.toMutableList()
-        checkAndAwardBadges(newStreak, updatedBadges)
+        context.getSharedPreferences("gamification", Context.MODE_PRIVATE)
+            .edit()
+            .putString("last_activity_date", todayStr)
+            .putInt("streak_count", newStreak)
+            .apply()
+    }
 
-        // Save updated user
-        val users = AuthManager.getRegisteredUsers(context).toMutableList()
-        val index = users.indexOfFirst { it.email == user.email }
-        if (index != -1) {
-            users[index] = users[index].copy(
-                streakCount = newStreak,
-                lastActivityDate = todayStr,
-                earnedBadges = updatedBadges
-            )
-            AuthManager.saveUsers(context, users)
-        }
+    fun getStreak(context: Context): Int {
+        return context.getSharedPreferences("gamification", Context.MODE_PRIVATE)
+            .getInt("streak_count", 1)
     }
 
     private fun isMoreThanOneDayAgo(lastDateStr: String?): Boolean {

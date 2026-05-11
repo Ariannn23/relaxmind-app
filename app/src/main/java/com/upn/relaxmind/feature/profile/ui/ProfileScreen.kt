@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +35,7 @@ import java.util.Calendar
 @Composable
 fun ProfileScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val currentUser = remember { AuthManager.getCurrentUser(context) }
     
     // Local state for editing
@@ -92,9 +94,14 @@ fun ProfileScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
             
             if (hasChanges) {
                 TextButton(onClick = {
-                    AuthManager.updateProfile(context, name, lastName, phoneNumber, birthday    , condition, currentUser?.avatar)
-                    Toast.makeText(context, "Perfil actualizado", Toast.LENGTH_SHORT).show()
-                    onBack() // Or just refresh
+                    scope.launch {
+                        AuthManager.updateProfile(
+                            context,
+                            mapOf("name" to name, "last_name" to lastName, "phone_number" to phoneNumber, "birth_date" to birthday, "condition" to condition)
+                        )
+                        Toast.makeText(context, "Perfil actualizado", Toast.LENGTH_SHORT).show()
+                        onBack()
+                    }
                 }) {
                     Text("Guardar", color = RelaxGreen, fontWeight = FontWeight.Bold)
                 }

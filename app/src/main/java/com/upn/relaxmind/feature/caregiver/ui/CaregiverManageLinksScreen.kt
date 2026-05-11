@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,22 +31,27 @@ import com.upn.relaxmind.core.ui.theme.*
 @Composable
 fun CaregiverManageLinksScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    var linkedPatients by remember { mutableStateOf(AuthManager.getLinkedUsers(context)) }
+    val scope = rememberCoroutineScope()
+    var linkedPatients by remember { mutableStateOf<List<User>>(emptyList()) }
     var patientToUnlink by remember { mutableStateOf<User?>(null) }
     var patientToEdit by remember { mutableStateOf<User?>(null) }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var newRelationship by remember { mutableStateOf("") }
 
+    LaunchedEffect(Unit) {
+        linkedPatients = AuthManager.getLinkedUsers(context)
+    }
+
+    fun refreshList() {
+        scope.launch { linkedPatients = AuthManager.getLinkedUsers(context) }
+    }
+
     val isDark = LocalIsDarkTheme.current
     val bgColor = if (isDark) Color(0xFF0F172A) else CaregiverBg
     val surfaceColor = if (isDark) Color(0xFF1E293B) else Color.White
     val textColor = if (isDark) Color.White else Color(0xFF1E293B)
     val mutedTextColor = if (isDark) Color.LightGray.copy(0.7f) else Color.Gray
-
-    fun refreshList() {
-        linkedPatients = AuthManager.getLinkedUsers(context)
-    }
 
     Scaffold(
         containerColor = bgColor,
@@ -233,8 +239,10 @@ fun CaregiverManageLinksScreen(onBack: () -> Unit) {
                 Button(
                     onClick = {
                         val finalRel = if (selectedOption == "Otro") customRelationship else selectedOption
-                        AuthManager.updateRelationship(context, patientToEdit!!.id, finalRel)
-                        refreshList()
+                        scope.launch {
+                            AuthManager.updateRelationship(context, patientToEdit!!.id, finalRel)
+                            refreshList()
+                        }
                         showEditDialog = false
                         Toast.makeText(context, "Vínculo actualizado ✓", Toast.LENGTH_SHORT).show()
                     },
@@ -267,12 +275,12 @@ fun CaregiverManageLinksScreen(onBack: () -> Unit) {
             confirmButton = {
                 Button(
                     onClick = {
-                        val success = AuthManager.unlinkUser(context, patientToUnlink!!.id)
-                        if (success) {
+                        scope.launch {
+                            AuthManager.unlinkUser(context, patientToUnlink!!.id)
                             refreshList()
                             showConfirmDialog = false
-                            Toast.makeText(context, "Vínculo eliminado", Toast.LENGTH_SHORT).show()
                         }
+                        Toast.makeText(context, "Vínculo eliminado", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
                     shape = RoundedCornerShape(12.dp)

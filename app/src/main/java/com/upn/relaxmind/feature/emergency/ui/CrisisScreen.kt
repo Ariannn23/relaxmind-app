@@ -75,12 +75,14 @@ fun CrisisScreen(
     val context = LocalContext.current
     var showAlert by remember { mutableStateOf(false) }
     var showActions by remember { mutableStateOf(false) }
+    var linkedUsers by remember { mutableStateOf<List<com.upn.relaxmind.core.data.models.User>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         delay(120)
         showAlert = true
         delay(400)
         showActions = true
+        linkedUsers = AuthManager.getLinkedUsers(context)
     }
 
 
@@ -260,7 +262,6 @@ fun CrisisScreen(
                     )
 
                     // Call first contact
-                    val linkedUsers = AuthManager.getLinkedUsers(context)
                     val firstCaregiver = linkedUsers.firstOrNull { it.role == "CAREGIVER" }
                     val caregiverPhone = firstCaregiver?.phoneNumber ?: ""
 

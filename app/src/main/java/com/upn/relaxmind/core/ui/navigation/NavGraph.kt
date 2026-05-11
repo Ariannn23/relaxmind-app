@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
+import kotlinx.coroutines.launch
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -107,6 +108,7 @@ fun RelaxMindNavGraph(
     onToggleDarkTheme: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val hasSeenOnboarding = AppPreferences.hasSeenOnboarding(context)
     val currentUser = remember { AuthManager.getCurrentUser(context) }
     val isLoggedIn = currentUser != null
@@ -149,17 +151,20 @@ fun RelaxMindNavGraph(
                 )
             }
             composable(RelaxMindRoutes.LOGIN_FORM) {
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
                 LoginViewScreen(
                     onLoginClick = { email, password ->
-                        val user = AuthManager.loginUser(context, email, password)
-                        if (user != null) {
-                            AppPreferences.setGuestMode(context, false)
-                            val dest = if (user.role == "CAREGIVER") RelaxMindRoutes.CAREGIVER_DASHBOARD else RelaxMindRoutes.DASHBOARD
-                            navController.navigate(dest) {
-                                popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
+                        scope.launch {
+                            val user = AuthManager.loginUser(context, email, password)
+                            if (user != null) {
+                                AppPreferences.setGuestMode(context, false)
+                                val dest = if (user.role == "CAREGIVER") RelaxMindRoutes.CAREGIVER_DASHBOARD else RelaxMindRoutes.DASHBOARD
+                                navController.navigate(dest) {
+                                    popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
+                                }
+                            } else {
+                                Toast.makeText(context, "Correo o contraseña incorrectos", Toast.LENGTH_SHORT).show()
                             }
-                        } else {
-                            Toast.makeText(context, "Correo o contraseña incorrectos", Toast.LENGTH_SHORT).show()
                         }
                     },
                     onBiometricClick = {
@@ -175,12 +180,14 @@ fun RelaxMindNavGraph(
                                 title = "Inicio Biométrico",
                                 subtitle = "Usa tu huella para entrar a RelaxMind",
                                 onSuccess = {
-                                    val user = AuthManager.loginWithBiometrics(context)
-                                    if (user != null) {
-                                        AppPreferences.setGuestMode(context, false)
-                                        val dest = if (user.role == "CAREGIVER") RelaxMindRoutes.CAREGIVER_DASHBOARD else RelaxMindRoutes.DASHBOARD
-                                        navController.navigate(dest) {
-                                            popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
+                                    scope.launch {
+                                        val user = AuthManager.loginWithBiometrics(context)
+                                        if (user != null) {
+                                            AppPreferences.setGuestMode(context, false)
+                                            val dest = if (user.role == "CAREGIVER") RelaxMindRoutes.CAREGIVER_DASHBOARD else RelaxMindRoutes.DASHBOARD
+                                            navController.navigate(dest) {
+                                                popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
+                                            }
                                         }
                                     }
                                 },
@@ -208,16 +215,19 @@ fun RelaxMindNavGraph(
                 )
             }
             composable(RelaxMindRoutes.SIGN_UP) {
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
                 SignUpScreen(
                     onCreateAccount = { name, phone, email, password ->
-                        val success = AuthManager.registerUser(context, name, email, password, "PATIENT", phone)
-                        if (success) {
-                            AuthManager.loginUser(context, email, password)
-                            AppPreferences.setGuestMode(context, false)
-                            AppPreferences.setJustRegistered(context, true)
-                            navController.navigate(RelaxMindRoutes.VERIFY_EMAIL)
-                        } else {
-                            Toast.makeText(context, "El correo ya está registrado", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            val success = AuthManager.registerUser(context, name, email, password, "PATIENT", phone)
+                            if (success) {
+                                AuthManager.loginUser(context, email, password)
+                                AppPreferences.setGuestMode(context, false)
+                                AppPreferences.setJustRegistered(context, true)
+                                navController.navigate(RelaxMindRoutes.VERIFY_EMAIL)
+                            } else {
+                                Toast.makeText(context, "El correo ya está registrado", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
                     onBackToLogin = { navController.popBackStack() }
@@ -298,9 +308,11 @@ fun RelaxMindNavGraph(
                     onOpenRewards = { navController.navigate(RelaxMindRoutes.REWARDS) },
                     onToggleDarkTheme = onToggleDarkTheme,
                     onLogout = {
-                        AuthManager.logout(context)
-                        navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
-                            popUpTo(RelaxMindRoutes.DASHBOARD) { inclusive = true }
+                        scope.launch {
+                            AuthManager.logout(context)
+                            navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
+                                popUpTo(RelaxMindRoutes.DASHBOARD) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -337,9 +349,11 @@ fun RelaxMindNavGraph(
                     onEditProfile = { navController.navigate(RelaxMindRoutes.EDIT_PROFILE) },
                     onOpenSettings = { navController.navigate(RelaxMindRoutes.PROFILE) },
                     onLogout = {
-                        com.upn.relaxmind.core.data.auth.AuthManager.logout(context)
-                        navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
-                            popUpTo(0) { inclusive = true }
+                        scope.launch {
+                            com.upn.relaxmind.core.data.auth.AuthManager.logout(context)
+                            navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -409,9 +423,11 @@ fun RelaxMindNavGraph(
                     onOpenSettings = { navController.navigate(RelaxMindRoutes.CAREGIVER_SETTINGS) },
                     onOpenNotifications = { navController.navigate(RelaxMindRoutes.CAREGIVER_NOTIFICATIONS) },
                     onLogout = {
-                        AuthManager.logout(context)
-                        navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
-                            popUpTo(0) { inclusive = true }
+                        scope.launch {
+                            AuthManager.logout(context)
+                            navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
                 )
@@ -447,9 +463,11 @@ fun RelaxMindNavGraph(
                     onEditProfile = { navController.navigate(RelaxMindRoutes.CAREGIVER_EDIT_PROFILE) },
                     onManageLinks = { navController.navigate(RelaxMindRoutes.CAREGIVER_MANAGE_LINKS) },
                     onLogout = {
-                        AuthManager.logout(context)
-                        navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
-                            popUpTo(0) { inclusive = true }
+                        scope.launch {
+                            AuthManager.logout(context)
+                            navController.navigate(RelaxMindRoutes.AUTH_WELCOME) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
                 )

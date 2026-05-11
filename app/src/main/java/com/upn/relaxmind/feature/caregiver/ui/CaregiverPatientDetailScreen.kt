@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,11 +39,14 @@ fun CaregiverPatientDetailScreen(
     onViewHistory: () -> Unit
 ) {
     val context = LocalContext.current
-    val patient = remember(patientId) { 
-        AuthManager.getRegisteredUsers(context).find { it.id == patientId } 
-    } ?: return
-
-    val score = patient.wellnessScore
+    var patient by remember { mutableStateOf<com.upn.relaxmind.core.data.models.User?>(null) }
+    
+    LaunchedEffect(patientId) {
+        patient = AuthManager.getRegisteredUsers(context).find { it.id == patientId }
+    }
+    
+    val p = patient ?: return
+    val score = p.wellnessScore
     val statusColor = when {
         score >= 70 -> RelaxGreen
         score >= 40 -> Color(0xFFEAB308)
@@ -72,17 +76,17 @@ fun CaregiverPatientDetailScreen(
         ) {
             // Header Info
             Row(verticalAlignment = Alignment.CenterVertically) {
-                UserAvatar(user = patient, size = 80, fontSize = 32)
+                UserAvatar(user = p, size = 80, fontSize = 32)
                 Spacer(modifier = Modifier.width(20.dp))
                 Column {
                     Text(
-                        text = "${patient.name} ${patient.lastName}",
+                        text = "${p.name} ${p.lastName}",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Black,
                         color = Color(0xFF1E293B)
                     )
                     Text(
-                        text = patient.professionalRole ?: "Paciente",
+                        text = p.professionalRole ?: "Paciente",
                         style = MaterialTheme.typography.bodyMedium,
                         color = CaregiverBlue,
                         fontWeight = FontWeight.SemiBold
@@ -142,8 +146,8 @@ fun CaregiverPatientDetailScreen(
             // Call Button
             Button(
                 onClick = {
-                    if (patient.phoneNumber.isNotEmpty()) {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:${patient.phoneNumber}"))
+                    if (p.phoneNumber.isNotEmpty()) {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:${p.phoneNumber}"))
                         context.startActivity(intent)
                     } else {
                         val intent = android.content.Intent(android.content.Intent.ACTION_DIAL)

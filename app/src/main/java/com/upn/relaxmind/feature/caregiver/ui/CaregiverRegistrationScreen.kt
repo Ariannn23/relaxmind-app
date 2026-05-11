@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +33,7 @@ fun CaregiverRegistrationScreen(
     onSuccess: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
@@ -159,20 +161,21 @@ fun CaregiverRegistrationScreen(
             Button(
                 onClick = {
                     if (name.isNotEmpty() && email.isNotEmpty() && password.isNotEmpty()) {
-                        val success = AuthManager.registerUser(
-                            context = context,
-                            name = name,
-                            email = email,
-                            password = password,
-                            role = "CAREGIVER",
-                            phoneNumber = phoneNumber,
-                            relationship = relationship
-                        )
-                        if (success) {
-                            Toast.makeText(context, "Cuenta creada exitosamente", Toast.LENGTH_SHORT).show()
-                            onSuccess()
-                        } else {
-                            Toast.makeText(context, "El correo ya está registrado", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            val success = AuthManager.registerUser(
+                                context = context,
+                                name = name,
+                                email = email,
+                                password = password,
+                                role = "CAREGIVER",
+                                phoneNumber = phoneNumber
+                            )
+                            if (success) {
+                                Toast.makeText(context, "Cuenta creada exitosamente", Toast.LENGTH_SHORT).show()
+                                onSuccess()
+                            } else {
+                                Toast.makeText(context, "El correo ya está registrado", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     } else {
                         Toast.makeText(context, "Por favor completa todos los campos", Toast.LENGTH_SHORT).show()

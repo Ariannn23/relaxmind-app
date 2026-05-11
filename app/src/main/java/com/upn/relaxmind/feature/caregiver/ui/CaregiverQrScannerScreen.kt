@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +68,7 @@ fun CaregiverQrScannerScreen(
 
     var scannedPatient by remember { mutableStateOf<User?>(null) }
     var showDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         containerColor = Color.Black,
@@ -89,13 +91,13 @@ fun CaregiverQrScannerScreen(
                     onQrCodeScanned = { content ->
                         if (!showDialog && content.contains("LINK_TOKEN:RELAXMIND_LINK:")) {
                             val tokenPart = content.substringAfter("LINK_TOKEN:RELAXMIND_LINK:").trim()
-                            // Get only the ID part (in case there are newlines after)
                             val patientId = tokenPart.split("\n", " ").first()
-                            
-                            val patient = AuthManager.getRegisteredUsers(context).find { it.id == patientId }
-                            if (patient != null) {
-                                scannedPatient = patient
-                                showDialog = true
+                            scope.launch {
+                                val patient = AuthManager.getRegisteredUsers(context).find { it.id == patientId }
+                                if (patient != null) {
+                                    scannedPatient = patient
+                                    showDialog = true
+                                }
                             }
                         }
                     }
@@ -153,8 +155,9 @@ fun CaregiverQrScannerScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val success = AuthManager.linkPatient(context, scannedPatient!!.id)
-                        if (success) {
+                        scope.launch {
+                            val user = User(id = scannedPatient!!.id, name = scannedPatient!!.name, email = scannedPatient!!.email, password = "")
+                            AuthManager.linkPatient(context, user)
                             showDialog = false
                             onLinked()
                         }

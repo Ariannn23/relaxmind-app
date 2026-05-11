@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "812679823715",
+    "project_id": "relaxmind-9b4ba",
+    "storage_bucket": "relaxmind-9b4ba.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:812679823715:android:434c5ed58ea877ea691356",
+        "android_client_info": {
+          "package_name": "com.upn.relaxmind"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwhDv53wKAKPdjWjV-7bhvL9ImmmmOv7s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

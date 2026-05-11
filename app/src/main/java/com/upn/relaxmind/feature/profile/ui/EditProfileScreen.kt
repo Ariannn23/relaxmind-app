@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +61,7 @@ fun EditProfileScreen(
 ) {
     val context  = LocalContext.current
     val isDark   = LocalIsDarkTheme.current
+    val scope    = rememberCoroutineScope()
     val user     = remember { AuthManager.getCurrentUser(context) }
 
     // ── Form state ────────────────────────────────────────────────────────────
@@ -142,10 +144,12 @@ fun EditProfileScreen(
                 actions = {
                     if (hasChanges) {
                         TextButton(onClick = {
-                            AuthManager.updateProfile(context, name, lastName, phoneNumber, currentFormattedDate, condition, selectedAvatar)
-                            AppPreferences.saveDisplayName(context, "$name $lastName".trim())
-                            Toast.makeText(context, "Perfil actualizado ✓", Toast.LENGTH_SHORT).show()
-                            onSaved()
+                            scope.launch {
+                                AuthManager.updateProfile(context, mapOf("name" to name, "last_name" to lastName, "phone_number" to phoneNumber, "birth_date" to currentFormattedDate, "condition" to condition))
+                                AppPreferences.saveDisplayName(context, "$name $lastName".trim())
+                                Toast.makeText(context, "Perfil actualizado ✓", Toast.LENGTH_SHORT).show()
+                                onSaved()
+                            }
                         }) {
                             Text(
                                 "Guardar",
@@ -304,10 +308,12 @@ fun EditProfileScreen(
             if (hasChanges) {
                 Button(
                     onClick = {
-                        AuthManager.updateProfile(context, name, lastName, phoneNumber, currentFormattedDate, condition, selectedAvatar)
-                        AppPreferences.saveDisplayName(context, "$name $lastName".trim())
-                        Toast.makeText(context, "Perfil actualizado ✓", Toast.LENGTH_SHORT).show()
-                        onSaved()
+                        scope.launch {
+                            AuthManager.updateProfile(context, mapOf("name" to name, "last_name" to lastName, "phone_number" to phoneNumber, "birth_date" to currentFormattedDate, "condition" to condition))
+                            AppPreferences.saveDisplayName(context, "$name $lastName".trim())
+                            Toast.makeText(context, "Perfil actualizado ✓", Toast.LENGTH_SHORT).show()
+                            onSaved()
+                        }
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(18.dp),

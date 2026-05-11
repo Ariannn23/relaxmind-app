@@ -14,6 +14,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,16 +34,19 @@ import kotlinx.coroutines.delay
 @Composable
 fun RemoteLinkingCodeScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val user = remember { AuthManager.getCurrentUser(context) }
     var code by remember { mutableStateOf("") }
     var timeLeft by remember { mutableStateOf(120) }
     var isExpired by remember { mutableStateOf(false) }
 
     fun refreshCode() {
-        if (user != null) {
-            code = AuthManager.generateTempCode(context, user.id)
-            timeLeft = 120
-            isExpired = false
+        scope.launch {
+            if (user != null) {
+                code = AuthManager.generateTempCode(context)
+                timeLeft = 120
+                isExpired = false
+            }
         }
     }
 

@@ -1,275 +1,244 @@
 package com.upn.relaxmind.core.data.auth
 
 import android.content.Context
-import com.upn.relaxmind.core.data.models.User
-import com.upn.relaxmind.core.data.preferences.AppPreferences
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import java.util.UUID
+import android.util.Log
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.upn.relaxmind.core.data.local.AppDatabase
+import com.upn.relaxmind.core.data.local.entities.UserEntity
+import com.upn.relaxmind.core.data.models.User
+import com.upn.relaxmind.core.data.network.SupabaseManager
+import com.upn.relaxmind.core.data.preferences.AppPreferences
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.builtin.Email
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object AuthManager {
-    private const val PREFS_AUTH = "relaxmind_auth"
-    private const val KEY_USERS = "registered_users"
-    private const val KEY_LAST_USER_EMAIL = "last_user_email"
-    private const val KEY_CURRENT_USER_EMAIL = "current_user_email"
-
     var isSessionUnlocked by mutableStateOf(false)
+    private val supabase = SupabaseManager.client
 
-    private fun getPrefs(context: Context) = context.getSharedPreferences(PREFS_AUTH, Context.MODE_PRIVATE)
-
-    fun registerUser(
-        context: Context, 
-        name: String, 
-        email: String, 
-        password: String, 
+    suspend fun registerUser(
+        context: Context,
+        name: String,
+        email: String,
+        password: String,
         role: String = "PATIENT",
-        phoneNumber: String = "",
-        relationship: String? = null
-    ): Boolean {
-        if (isEmailTaken(context, email)) return false
-        
-        val users = getRegisteredUsers(context).toMutableList()
-        val newUser = User(
-            id = UUID.randomUUID().toString(),
-            name = name,
-            email = email.lowercase().trim(),
-            password = password,
-            role = role,
-            phoneNumber = phoneNumber,
-            professionalRole = relationship
-        )
-        users.add(newUser)
-        saveUsers(context, users)
-        setLastUserEmail(context, email)
-        setCurrentUserEmail(context, email)
-        return true
-    }
+        phoneNumber: String = ""
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.auth.signUpWith(Email) {
+                this.email = email
+                this.password = password
+            }
 
-    fun loginUser(context: Context, email: String, password: String): User? {
-        val users = getRegisteredUsers(context)
-        val user = users.find { it.email == email.lowercase().trim() && it.password == password }
-        if (user != null) {
-            setLastUserEmail(context, user.email)
-            setCurrentUserEmail(context, user.email)
-            syncPreferences(context, user)
-            isSessionUnlocked = true
-        }
-        return user
-    }
+            val userId = supabase.auth.currentUserOrNull()?.id ?: return@withContext false
 
-    fun loginWithBiometrics(context: Context): User? {
-        val lastEmail = getLastUserEmail(context) ?: return null
-        val user = getRegisteredUsers(context).find { it.email == lastEmail }
-        
-        if (user != null && user.biometricEnabled) {
-            setCurrentUserEmail(context, user.email)
-            syncPreferences(context, user)
-            isSessionUnlocked = true
-            return user
-        }
-        return null
-    }
-
-    fun isBiometricAvailable(context: Context): Boolean {
-        val lastEmail = getLastUserEmail(context) ?: return false
-        val user = getRegisteredUsers(context).find { it.email == lastEmail }
-        return user?.biometricEnabled ?: false
-    }
-
-    fun setBiometricEnabled(context: Context, enabled: Boolean) {
-        val lastEmail = getLastUserEmail(context) ?: getCurrentUserEmail(context) ?: return
-        val users = getRegisteredUsers(context).toMutableList()
-        val index = users.indexOfFirst { it.email == lastEmail }
-        if (index != -1) {
-            users[index] = users[index].copy(biometricEnabled = enabled)
-            saveUsers(context, users)
-            AppPreferences.setBiometricEnabled(context, enabled)
-        }
-    }
-
-    fun updateProfile(context: Context, name: String, lastName: String, phoneNumber: String, birthDate: String, condition: String, avatar: String?) {
-        val lastEmail = getCurrentUserEmail(context) ?: return
-        val users = getRegisteredUsers(context).toMutableList()
-        val index = users.indexOfFirst { it.email == lastEmail }
-        if (index != -1) {
-            users[index] = users[index].copy(
-                name = name,
-                lastName = lastName,
-                phoneNumber = phoneNumber,
-                birthDate = birthDate,
-                condition = condition,
-                avatar = avatar
+            // Insert profile into Supabase (only valid profile columns)
+            supabase.postgrest.from("profiles").insert(
+                mapOf(
+                    "id" to userId,
+                    "name" to name,
+                    "email" to email,
+                    "role" to role,
+                    "phone_number" to phoneNumber
+                )
             )
-            saveUsers(context, users)
-            syncPreferences(context, users[index])
+            // Cache locally
+            val userEntity = UserEntity(id = userId, name = name, email = email, role = role, phoneNumber = phoneNumber)
+            AppDatabase.getDatabase(context).userDao().insertUser(userEntity)
+            true
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Registration error", e)
+            false
         }
     }
 
-    /**
-     * Links a caregiver with a patient using the patient's ID (or a 6-digit code derived from it).
-     */
-    // --- Temporary Linking Codes (Yape style) ---
-    private const val KEY_TEMP_CODE = "temp_linking_code"
-    private const val KEY_TEMP_CODE_TIME = "temp_linking_code_time"
-    private const val KEY_TEMP_CODE_USER_ID = "temp_linking_code_user_id"
-    private const val EXPIRATION_SECONDS = 120
+    suspend fun loginUser(context: Context, email: String, password: String): User? = withContext(Dispatchers.IO) {
+        try {
+            supabase.auth.signInWith(Email) {
+                this.email = email
+                this.password = password
+            }
 
-    fun generateTempCode(context: Context, userId: String): String {
-        val code = (100000..999999).random().toString()
-        val prefs = getPrefs(context)
-        prefs.edit().apply {
-            putString(KEY_TEMP_CODE, code)
-            putLong(KEY_TEMP_CODE_TIME, System.currentTimeMillis())
-            putString(KEY_TEMP_CODE_USER_ID, userId)
-            apply()
+            val session = supabase.auth.currentSessionOrNull() ?: return@withContext null
+            val userId = session.user?.id ?: return@withContext null
+
+            val profile = supabase.postgrest.from("profiles")
+                .select { filter { eq("id", userId) } }
+                .decodeSingle<UserEntity>()
+
+            AppDatabase.getDatabase(context).userDao().insertUser(profile)
+            isSessionUnlocked = true
+
+            User(
+                id = profile.id,
+                name = profile.name,
+                email = profile.email,
+                password = "",
+                role = profile.role,
+                phoneNumber = profile.phoneNumber
+            )
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Login error", e)
+            null
         }
-        return code
-    }
-
-    fun validateTempCode(context: Context, code: String): String? {
-        val prefs = getPrefs(context)
-        val savedCode = prefs.getString(KEY_TEMP_CODE, null)
-        val savedTime = prefs.getLong(KEY_TEMP_CODE_TIME, 0)
-        val savedUserId = prefs.getString(KEY_TEMP_CODE_USER_ID, null)
-
-        if (savedCode == null || savedUserId == null) return null
-
-        val currentTime = System.currentTimeMillis()
-        val diffSeconds = (currentTime - savedTime) / 1000
-
-        if (code == savedCode && diffSeconds <= EXPIRATION_SECONDS) {
-            // Valid code, clear it after use
-            prefs.edit().remove(KEY_TEMP_CODE).remove(KEY_TEMP_CODE_TIME).remove(KEY_TEMP_CODE_USER_ID).apply()
-            return savedUserId
-        }
-        return null
-    }
-
-    fun linkPatient(context: Context, patientIdOrCode: String): Boolean {
-        val currentUser = getCurrentUser(context) ?: return false
-        if (currentUser.role != "CAREGIVER") return false
-
-        val users = getRegisteredUsers(context).toMutableList()
-        
-        // Find patient by ID or by a simple 6-digit code (first 6 chars of ID for simplicity in this local demo)
-        val patientIndex = users.indexOfFirst { 
-            it.id == patientIdOrCode || it.id.take(6).uppercase() == patientIdOrCode.uppercase() 
-        }
-        
-        if (patientIndex == -1 || users[patientIndex].role != "PATIENT") return false
-        
-        val patientId = users[patientIndex].id
-        val caregiverId = currentUser.id
-
-        // Check if already linked
-        if (currentUser.linkedUserIds.contains(patientId)) return true
-
-        // Update Caregiver
-        val caregiverIndex = users.indexOfFirst { it.id == caregiverId }
-        users[caregiverIndex] = users[caregiverIndex].copy(
-            linkedUserIds = users[caregiverIndex].linkedUserIds + patientId
-        )
-
-        // Update Patient
-        users[patientIndex] = users[patientIndex].copy(
-            linkedUserIds = users[patientIndex].linkedUserIds + caregiverId
-        )
-
-        saveUsers(context, users)
-        return true
-    }
-
-    fun unlinkUser(context: Context, targetUserId: String): Boolean {
-        val currentUser = getCurrentUser(context) ?: return false
-        val users = getRegisteredUsers(context).toMutableList()
-        
-        val userIndex = users.indexOfFirst { it.id == currentUser.id }
-        val targetIndex = users.indexOfFirst { it.id == targetUserId }
-        
-        if (userIndex == -1 || targetIndex == -1) return false
-        
-        // Update current user
-        users[userIndex] = users[userIndex].copy(
-            linkedUserIds = users[userIndex].linkedUserIds.filter { it != targetUserId }
-        )
-        
-        // Update target user (bidirectional unlink)
-        users[targetIndex] = users[targetIndex].copy(
-            linkedUserIds = users[targetIndex].linkedUserIds.filter { it != currentUser.id }
-        )
-        
-        saveUsers(context, users)
-        return true
-    }
-
-    fun getLinkedUsers(context: Context): List<User> {
-        val currentUser = getCurrentUser(context) ?: return emptyList()
-        val allUsers = getRegisteredUsers(context)
-        return allUsers.filter { currentUser.linkedUserIds.contains(it.id) }
     }
 
     fun getCurrentUser(context: Context): User? {
-        val email = getCurrentUserEmail(context) ?: return null
-        return getRegisteredUsers(context).find { it.email == email }
+        val session = supabase.auth.currentSessionOrNull() ?: return null
+        return User(
+            id = session.user?.id ?: "",
+            name = AppPreferences.getDisplayName(context),
+            email = session.user?.email ?: "",
+            password = ""
+        )
     }
 
-    fun isEmailTaken(context: Context, email: String): Boolean {
-        return getRegisteredUsers(context).any { it.email == email.lowercase().trim() }
-    }
-
-    fun getRegisteredUsers(context: Context): List<User> {
-        val json = getPrefs(context).getString(KEY_USERS, null) ?: return emptyList()
-        return try { Json.decodeFromString(json) } catch (e: Exception) { emptyList() }
-    }
-
-    fun saveUsers(context: Context, users: List<User>) {
-        val json = Json.encodeToString(users)
-        getPrefs(context).edit().putString(KEY_USERS, json).apply()
-    }
-
-    private fun setLastUserEmail(context: Context, email: String?) {
-        getPrefs(context).edit().putString(KEY_LAST_USER_EMAIL, email).apply()
-    }
-
-    fun getLastUserEmail(context: Context): String? {
-        return getPrefs(context).getString(KEY_LAST_USER_EMAIL, null)
-    }
-
-    private fun setCurrentUserEmail(context: Context, email: String?) {
-        getPrefs(context).edit().putString(KEY_CURRENT_USER_EMAIL, email).apply()
-    }
-
-    fun getCurrentUserEmail(context: Context): String? {
-        return getPrefs(context).getString(KEY_CURRENT_USER_EMAIL, null)
-    }
-
-    fun updateRelationship(context: Context, patientId: String, newRelationship: String): Boolean {
-        val currentUser = getCurrentUser(context) ?: return false
-        val users = getRegisteredUsers(context).toMutableList()
-        val index = users.indexOfFirst { it.id == currentUser.id }
-        if (index != -1) {
-            val updatedMap = users[index].patientRelationships.toMutableMap()
-            updatedMap[patientId] = newRelationship
-            users[index] = users[index].copy(patientRelationships = updatedMap)
-            saveUsers(context, users)
-            return true
+    suspend fun updateProfile(context: Context, updates: Map<String, Any>) = withContext(Dispatchers.IO) {
+        try {
+            val userId = supabase.auth.currentUserOrNull()?.id ?: return@withContext
+            supabase.postgrest.from("profiles").update(updates) {
+                filter { eq("id", userId) }
+            }
+            // Update local display name if provided
+            (updates["name"] as? String)?.let { AppPreferences.saveDisplayName(context, it) }
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Update profile error", e)
         }
-        return false
     }
 
-    private fun syncPreferences(context: Context, user: User) {
-        AppPreferences.saveDisplayName(context, user.name)
-        AppPreferences.saveBirthDate(context, user.birthDate)
-        AppPreferences.saveCondition(context, user.condition)
-        AppPreferences.setBiometricEnabled(context, user.biometricEnabled)
-    }
-
-    fun logout(context: Context) {
-        AppPreferences.clear(context)
-        setCurrentUserEmail(context, null)
+    suspend fun logout(context: Context) {
+        withContext(Dispatchers.IO) {
+            try {
+                supabase.auth.signOut()
+                AppDatabase.getDatabase(context).userDao().clearAll()
+            } catch (e: Exception) {
+                Log.e("AuthManager", "Logout error", e)
+            }
+        }
         isSessionUnlocked = false
+    }
+
+    // Biometric support - delegates to AppPreferences
+    fun isBiometricAvailable(context: Context): Boolean = AppPreferences.isBiometricEnabled(context)
+    fun setBiometricEnabled(context: Context, enabled: Boolean) = AppPreferences.setBiometricEnabled(context, enabled)
+
+    // Legacy linking/temp code stubs (for UI compatibility while Supabase migration is WIP)
+    suspend fun generateTempCode(context: Context): String = withContext(Dispatchers.IO) {
+        try {
+            val userId = supabase.auth.currentUserOrNull()?.id ?: return@withContext ""
+            val code = (100000..999999).random().toString()
+            val expiresAt = java.time.Instant.now().plusSeconds(300).toString()
+            supabase.postgrest.from("temp_link_codes").upsert(
+                mapOf("code" to code, "user_id" to userId, "expires_at" to expiresAt)
+            )
+            code
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Generate temp code error", e)
+            ""
+        }
+    }
+
+    suspend fun validateTempCode(code: String): UserEntity? = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest.from("temp_link_codes")
+                .select { filter { eq("code", code) } }
+                .decodeSingleOrNull<UserEntity>()
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Validate code error", e)
+            null
+        }
+    }
+
+    suspend fun getLinkedUsers(context: Context): List<User> = withContext(Dispatchers.IO) {
+        try {
+            val userId = supabase.auth.currentUserOrNull()?.id ?: return@withContext emptyList()
+            val links = supabase.postgrest.from("patient_caregiver_links")
+                .select { filter { eq("patient_id", userId); eq("status", "active") } }
+                .decodeList<Map<String, String>>()
+
+            links.mapNotNull { link ->
+                val caregiverId = link["caregiver_id"] ?: return@mapNotNull null
+                val profile = supabase.postgrest.from("profiles")
+                    .select { filter { eq("id", caregiverId) } }
+                    .decodeSingleOrNull<UserEntity>() ?: return@mapNotNull null
+                User(id = profile.id, name = profile.name, email = profile.email, password = "", phoneNumber = profile.phoneNumber)
+            }
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Get linked users error", e)
+            emptyList()
+        }
+    }
+
+    suspend fun linkPatient(context: Context, patient: User, relationship: String = "") = withContext(Dispatchers.IO) {
+        try {
+            val caregiverId = supabase.auth.currentUserOrNull()?.id ?: return@withContext
+            supabase.postgrest.from("patient_caregiver_links").upsert(
+                mapOf(
+                    "patient_id" to patient.id,
+                    "caregiver_id" to caregiverId,
+                    "status" to "pending",
+                    "relationship" to relationship
+                )
+            )
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Link patient error", e)
+        }
+    }
+
+    suspend fun unlinkUser(context: Context, userId: String) = withContext(Dispatchers.IO) {
+        try {
+            val currentId = supabase.auth.currentUserOrNull()?.id ?: return@withContext
+            supabase.postgrest.from("patient_caregiver_links").delete {
+                filter {
+                    or {
+                        and { eq("patient_id", currentId); eq("caregiver_id", userId) }
+                        and { eq("caregiver_id", currentId); eq("patient_id", userId) }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Unlink user error", e)
+        }
+    }
+
+    suspend fun updateRelationship(context: Context, userId: String, relationship: String) = withContext(Dispatchers.IO) {
+        try {
+            val currentId = supabase.auth.currentUserOrNull()?.id ?: return@withContext
+            supabase.postgrest.from("patient_caregiver_links").update(
+                mapOf("relationship" to relationship)
+            ) {
+                filter { eq("caregiver_id", currentId); eq("patient_id", userId) }
+            }
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Update relationship error", e)
+        }
+    }
+
+    suspend fun getRegisteredUsers(context: Context): List<User> = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest.from("profiles").select()
+                .decodeList<UserEntity>()
+                .map { User(id = it.id, name = it.name, email = it.email, password = "", role = it.role, phoneNumber = it.phoneNumber) }
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Get registered users error", e)
+            emptyList()
+        }
+    }
+
+    suspend fun loginWithBiometrics(context: Context): User? {
+        // Biometric just re-uses the cached Supabase session
+        val session = supabase.auth.currentSessionOrNull() ?: return null
+        isSessionUnlocked = true
+        return User(
+            id = session.user?.id ?: "",
+            name = AppPreferences.getDisplayName(context),
+            email = session.user?.email ?: "",
+            password = ""
+        )
     }
 }

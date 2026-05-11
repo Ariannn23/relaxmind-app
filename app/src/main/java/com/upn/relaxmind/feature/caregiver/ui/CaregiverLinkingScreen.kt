@@ -33,6 +33,7 @@ fun CaregiverLinkingScreen(
     onOpenScanner: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var code by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
@@ -122,24 +123,27 @@ fun CaregiverLinkingScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+
             Button(
                 onClick = {
                     if (code.length == 6) {
-                        isLoading = true
-                        // Try validating as temporary code first
-                        val patientId = AuthManager.validateTempCode(context, code)
-                        val idToSearch = patientId ?: code
-                        
-                        val patient = AuthManager.getRegisteredUsers(context).find { 
-                            it.id == idToSearch || it.id.take(6).uppercase() == idToSearch.uppercase() 
-                        }
-                        
-                        isLoading = false
-                        if (patient != null && patient.role == "PATIENT") {
-                            detectedPatient = patient
-                            showConfirmDialog = true
-                        } else {
-                            Toast.makeText(context, "Código inválido o vencido", Toast.LENGTH_SHORT).show()
+                        scope.launch {
+                            isLoading = true
+                            // Try validating as temporary code first
+                            val patientFromCode = AuthManager.validateTempCode(code)
+                            val idToSearch = patientFromCode?.id ?: code
+                            
+                            val patient = AuthManager.getRegisteredUsers(context).find { 
+                                it.id == idToSearch || it.id.take(6).uppercase() == idToSearch.uppercase() 
+                            }
+                            
+                            isLoading = false
+                            if (patient != null && patient.role == "PATIENT") {
+                                detectedPatient = patient
+                                showConfirmDialog = true
+                            } else {
+                                Toast.makeText(context, "Código inválido o vencido", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     } else {
                         Toast.makeText(context, "El código debe tener 6 dígitos", Toast.LENGTH_SHORT).show()
@@ -190,13 +194,11 @@ fun CaregiverLinkingScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val success = AuthManager.linkPatient(context, detectedPatient!!.id)
-                        if (success) {
+                        scope.launch {
+                            AuthManager.linkPatient(context, detectedPatient!!)
                             showConfirmDialog = false
                             Toast.makeText(context, "¡Viculación exitosa!", Toast.LENGTH_SHORT).show()
                             onSuccess()
-                        } else {
-                            Toast.makeText(context, "Error al vincular", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = CaregiverBlue)

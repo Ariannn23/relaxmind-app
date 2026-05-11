@@ -2,13 +2,14 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
+    id("com.google.gms.google-services")
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    id("com.google.devtools.ksp")
 }
 
 android {
     namespace = "com.upn.relaxmind"
-    // CAMBIO AQUÍ: Usa la forma simple para evitar el error de "android-35.1"
     compileSdk = 36
 
     val localProperties = Properties()
@@ -20,6 +21,8 @@ android {
     val groqApiKey = localProperties.getProperty("GROQ_API_KEY") ?: ""
     val mapboxAccessToken = localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: ""
     val googleMapsApiKey = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
+    val supabaseUrl = localProperties.getProperty("SUPABASE_URL") ?: ""
+    val supabaseAnonKey = localProperties.getProperty("SUPABASE_ANON_KEY") ?: ""
 
     defaultConfig {
         applicationId = "com.upn.relaxmind"
@@ -35,6 +38,8 @@ android {
         buildConfigField("String", "GROQ_API_KEY", "\"$groqApiKey\"")
         buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxAccessToken\"")
         buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$googleMapsApiKey\"")
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
 
         // Inyectar la key de Google Maps en el manifest
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
@@ -91,6 +96,27 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     
+    // Supabase
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.functions)
+    implementation(libs.supabase.realtime)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.core)
+
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    implementation(libs.firebase.analytics)
+    
     // CameraX and ML Kit
     val camerax_version = "1.3.1"
     implementation("androidx.camera:camera-camera2:$camerax_version")
@@ -105,4 +131,4 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-}
+}

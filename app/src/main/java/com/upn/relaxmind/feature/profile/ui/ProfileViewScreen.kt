@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import com.upn.relaxmind.core.ui.components.RelaxBackButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -173,9 +174,10 @@ fun ProfileViewScreen(
 
             if (user?.role == "PATIENT") {
                 Spacer(modifier = Modifier.height(24.dp))
+                val scope = rememberCoroutineScope()
                 CaregiversCard(
                     onUnlink = { caregiverId ->
-                        AuthManager.unlinkUser(context, caregiverId)
+                        scope.launch { AuthManager.unlinkUser(context, caregiverId) }
                     }
                 )
             }
@@ -188,9 +190,13 @@ fun ProfileViewScreen(
 @Composable
 private fun CaregiversCard(onUnlink: (String) -> Unit) {
     val context = LocalContext.current
-    val linkedCaregivers = remember { AuthManager.getLinkedUsers(context) }
+    var linkedCaregivers by remember { mutableStateOf<List<com.upn.relaxmind.core.data.models.User>>(emptyList()) }
     var caregiverToUnlink by remember { mutableStateOf<com.upn.relaxmind.core.data.models.User?>(null) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        linkedCaregivers = AuthManager.getLinkedUsers(context)
+    }
 
     Column(
         modifier = Modifier
