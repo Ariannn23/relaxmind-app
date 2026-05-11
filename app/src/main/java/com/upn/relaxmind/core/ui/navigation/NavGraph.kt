@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +61,9 @@ import com.upn.relaxmind.feature.auth.ui.UserRole
 import com.upn.relaxmind.feature.auth.ui.VerifyEmailScreen
 import com.upn.relaxmind.feature.info.ui.AboutScreen
 import com.upn.relaxmind.feature.info.ui.TermsScreen
+import com.upn.relaxmind.feature.auth.viewmodel.AuthViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 object RelaxMindRoutes {
     const val AUTH_WELCOME = "auth_welcome"
@@ -139,8 +143,7 @@ fun RelaxMindNavGraph(
                 WelcomeAuthScreen(
                     onLoginNavigate = { navController.navigate(RelaxMindRoutes.LOGIN_FORM) },
                     onRegisterNavigate = { navController.navigate(RelaxMindRoutes.ROLE_SELECTION) },
-                    onGoogleSignIn = {
-                        AppPreferences.saveDisplayName(context, "Usuario Google")
+                    onSignInSuccess = {
                         AppPreferences.setGuestMode(context, false)
                         navController.navigate(RelaxMindRoutes.DASHBOARD) {
                             popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
@@ -149,6 +152,26 @@ fun RelaxMindNavGraph(
                 )
             }
             composable(RelaxMindRoutes.LOGIN_FORM) {
+                val authViewModel: AuthViewModel = viewModel()
+                val authUiState by authViewModel.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(authUiState.isGoogleLoginSuccess) {
+                    if (authUiState.isGoogleLoginSuccess) {
+                        AppPreferences.setGuestMode(context, false)
+                        navController.navigate(RelaxMindRoutes.DASHBOARD) {
+                            popUpTo(RelaxMindRoutes.AUTH_WELCOME) { inclusive = true }
+                        }
+                        authViewModel.resetLoginSuccess()
+                    }
+                }
+
+                LaunchedEffect(authUiState.error) {
+                    authUiState.error?.let {
+                        Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                        authViewModel.resetError()
+                    }
+                }
+
                 LoginViewScreen(
                     onLoginClick = { email, password ->
                         val user = AuthManager.loginUser(context, email, password)
@@ -190,6 +213,12 @@ fun RelaxMindNavGraph(
                             )
                         } else {
                             Toast.makeText(context, "Actividad no compatible con biometría", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onGoogleSignInClick = {
+                        val activity = context as? FragmentActivity
+                        if (activity != null) {
+                            authViewModel.onGoogleSignIn(context, activity)
                         }
                     },
                     onForgotPasswordClick = { navController.navigate(RelaxMindRoutes.FORGOT_PASSWORD) },

@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -20,6 +21,8 @@ android {
     val groqApiKey = localProperties.getProperty("GROQ_API_KEY") ?: ""
     val mapboxAccessToken = localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: ""
     val googleMapsApiKey = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
+    val supabaseUrl = localProperties.getProperty("supabase.url") ?: ""
+    val supabaseKey = localProperties.getProperty("supabase.anonKey") ?: ""
 
     defaultConfig {
         applicationId = "com.upn.relaxmind"
@@ -35,6 +38,8 @@ android {
         buildConfigField("String", "GROQ_API_KEY", "\"$groqApiKey\"")
         buildConfigField("String", "MAPBOX_ACCESS_TOKEN", "\"$mapboxAccessToken\"")
         buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$googleMapsApiKey\"")
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseKey\"")
 
         // Inyectar la key de Google Maps en el manifest
         manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
@@ -56,9 +61,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlin {
-        jvmToolchain(11)
-    }
+
 
     buildFeatures {
         compose = true
@@ -90,6 +93,23 @@ dependencies {
     implementation(libs.androidx.cardview)
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+
+    // Room
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    // Supabase
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.auth)
+    implementation(libs.ktor.client.android)
+
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+
     
     // CameraX and ML Kit
     val camerax_version = "1.3.1"

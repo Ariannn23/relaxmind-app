@@ -31,12 +31,20 @@ import com.upn.relaxmind.core.ui.theme.RelaxGreenSoft
 import com.upn.relaxmind.core.ui.theme.RelaxMutedText
 import kotlinx.coroutines.delay
 
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.upn.relaxmind.feature.auth.viewmodel.AuthViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.fragment.app.FragmentActivity
+
 @Composable
 fun WelcomeAuthScreen(
     onLoginNavigate: () -> Unit,
     onRegisterNavigate: () -> Unit,
-    onGoogleSignIn: () -> Unit
+    onSignInSuccess: () -> Unit,
+    viewModel: AuthViewModel = viewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
     var showContent by remember { mutableStateOf(false) }
     
@@ -47,6 +55,20 @@ fun WelcomeAuthScreen(
     LaunchedEffect(Unit) {
         delay(300)
         showContent = true
+    }
+
+    LaunchedEffect(uiState.isGoogleLoginSuccess) {
+        if (uiState.isGoogleLoginSuccess) {
+            onSignInSuccess()
+            viewModel.resetLoginSuccess()
+        }
+    }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.resetError()
+        }
     }
 
     Box(
@@ -114,7 +136,12 @@ fun WelcomeAuthScreen(
                     }
 
                     OutlinedButton(
-                        onClick = onGoogleSignIn,
+                        onClick = {
+                            val activity = context as? FragmentActivity
+                            if (activity != null) {
+                                viewModel.onGoogleSignIn(context, activity)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(24.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),

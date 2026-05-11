@@ -267,7 +267,43 @@ object AuthManager {
         AppPreferences.setBiometricEnabled(context, user.biometricEnabled)
     }
 
+    fun loginOrRegisterGoogleUser(
+        context: Context,
+        id: String,
+        name: String,
+        email: String,
+        avatar: String? = null
+    ): User {
+        val users = getRegisteredUsers(context).toMutableList()
+        val existingUser = users.find { it.email == email.lowercase().trim() }
+        
+        if (existingUser != null) {
+            setLastUserEmail(context, existingUser.email)
+            setCurrentUserEmail(context, existingUser.email)
+            syncPreferences(context, existingUser)
+            isSessionUnlocked = true
+            return existingUser
+        } else {
+            val newUser = User(
+                id = id,
+                name = name,
+                email = email.lowercase().trim(),
+                password = "", // No password for Google users
+                role = "PATIENT",
+                avatar = avatar
+            )
+            users.add(newUser)
+            saveUsers(context, users)
+            setLastUserEmail(context, email)
+            setCurrentUserEmail(context, email)
+            syncPreferences(context, newUser)
+            isSessionUnlocked = true
+            return newUser
+        }
+    }
+
     fun logout(context: Context) {
+
         AppPreferences.clear(context)
         setCurrentUserEmail(context, null)
         isSessionUnlocked = false

@@ -45,6 +45,7 @@ fun LoginViewScreen(
     onLoginClick: (String, String) -> Unit,
     onForgotPasswordClick: () -> Unit,
     onBiometricClick: () -> Unit,
+    onGoogleSignInClick: () -> Unit,
     onBack: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
@@ -208,6 +209,29 @@ fun LoginViewScreen(
                     )
                     Text("INICIO BIOMÉTRICO", color = RelaxGreen, fontWeight = FontWeight.Bold)
                 }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE2E8F0)))
+                Text("Ó", modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.labelMedium, color = RelaxMutedText, fontWeight = FontWeight.Bold)
+                Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE2E8F0)))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = onGoogleSignInClick,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Image(painter = painterResource(id = R.drawable.google), contentDescription = "Google", modifier = Modifier.size(24.dp))
+                    Text("CONTINUAR CON GOOGLE", color = Color(0xFF1E293B), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
             }
             
             Spacer(modifier = Modifier.height(100.dp))
